@@ -1,0 +1,16 @@
+base_image: dgx_aofei:latest
+
+compute_node: A100
+
+num_gpu: 3
+
+job_name: reg_llm_sft_Slake_region
+
+command:
+- export REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/gehealthcarerootca1.crt
+- source /qumulo/shared_data/aofei_summer/miniconda3/bin/activate base
+- cd /qumulo/shared_data/aofei_summer/RegTok/RegLLM
+- bash ./scripts/sft_slake_region.sh
+
+
+output_log_path: /qumulo/shared_data/aofei_summer/checkpoints/logs/sft_slake_region

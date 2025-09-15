@@ -1,0 +1,16 @@
+base_image: dgx_aofei:latest
+
+compute_node: H1002
+
+num_gpu: 1
+
+job_name: eval-reg_token_query-conv_abd_full
+
+command:
+- export REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/gehealthcarerootca1.crt
+- source /qumulo/shared_data/aofei_summer/miniconda3/bin/activate base
+- cd /qumulo/shared_data/aofei_summer/RegTok/source
+- bash ./scripts/eval_segmentation.sh
+
+
+output_log_path: /qumulo/shared_data/aofei_summer/RegTok/source/logs/stage0_updated-abd/eval-reg_token_query-conv_abd_full.log

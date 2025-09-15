@@ -1,0 +1,16 @@
+base_image: dgx_aofei:latest
+
+compute_node: A100
+
+num_gpu: 4
+
+job_name: reg_token_stage2_full
+
+command:
+- export REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/gehealthcarerootca1.crt
+- source /qumulo/shared_data/aofei_summer/miniconda3/bin/activate base
+- cd /qumulo/shared_data/aofei_summer/RegTok/source
+- bash ./scripts/train_vq_stage2_full.sh
+
+
+output_log_path: /qumulo/shared_data/aofei_summer/RegTok/source/logs/stage2_full/
