@@ -288,21 +288,30 @@ def hungarian_assign_with_semantic(
             total_cls_loss += cls_loss * len(row_ind)
         # Semantic loss for matched pairs
         if current_region_queries is not None and semantic_labels is not None:
-            # Use cross-entropy loss: treat each matched query as a "logit" over all semantic labels
-            # For each matched query, compute logits over all semantic labels and use the matched index as the target
-            # matched_queries: (num_matched, d)
-            # semlabs: (num_gt, d)
-            matched_queries = queries[col_ind]      # (num_matched, d)
-            matched_semlabs = semlabs[row_ind]      # (num_matched, d)
+            # If no matches, skip semantic loss for this image
+            if len(row_ind) == 0:
+                continue
+            # queries: (n, d), semlabs: (num_gt, d)
+            queries = current_region_queries[i]
+            semlabs = semantic_labels[i]
+            device = queries.device
+            # ensure semantic labels on same device
+            semlabs = semlabs.to(device)
+            # convert row/col indices to tensors on device
+            pred_idx = torch.as_tensor(col_ind, dtype=torch.long, device=device)
+            gt_idx = torch.as_tensor(row_ind, dtype=torch.long, device=device)
+            # select matched queries
+            matched_queries = queries[pred_idx]          # (num_matched, d)
             matched_queries_norm = F.normalize(matched_queries, dim=-1)
-            semlabs_norm = F.normalize(semlabs, dim=-1)
-            # Compute logits: (num_matched, num_gt)
-            logits = torch.matmul(matched_queries_norm, semlabs_norm.t()) / semantic_temperature
-            # Targets: for each matched pair, the correct class is row_ind[j]
-            targets = torch.arange(len(row_ind), device=logits.device)
-            # Cross-entropy loss
+            semlabs_norm = F.normalize(semlabs, dim=-1)  # (num_gt, d)
+            # compute logits of size (num_matched, num_gt)
+            logits = matched_queries_norm @ semlabs_norm.t()
+            logits = logits / max(semantic_temperature, 1e-6)
+            # targets: GT index (in range [0, num_gt-1]) for each matched query
+            targets = gt_idx
             semantic_loss = F.cross_entropy(logits, targets)
             total_semantic_loss += semantic_loss * len(row_ind)
+        
     dice_loss = total_dice_loss / max(total_count, 1)
     bce_loss = total_bce_loss / max(total_count, 1)
     cls_loss = total_cls_loss / max(total_count, 1) if total_cls_loss > 0 else None

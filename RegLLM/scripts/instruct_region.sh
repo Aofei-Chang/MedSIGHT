@@ -16,13 +16,11 @@ export HF_HUB_CACHE="/qumulo/shared_data/aofei_summer/LLMs"
 export WANDB_API_KEY="10bcf42e60bfd806f25e11d5e055aa2c19ede264"
 
 export PRETRAIN_OUT_PATH=checkpoints/i2t_pre_region
-export SFT_OUT_PATH=checkpoints/i2t_instruct_region03
+export SFT_OUT_PATH=/qumulo/shared_data/aofei_summer/intern_records/LVLM/checkpoints/i2t_instruct_region_final_sep
 export VISION_TOWER_CKPT="/qumulo/shared_data/aofei_summer/CLIPs/unimed_clip_vit_l14.pt"
 
 PRETRAIN_TASK_NAME=$(basename "${PRETRAIN_OUT_PATH%/}")
 SFT_TASK_NAME=$(basename "${SFT_OUT_PATH%/}")
-WORKER_NUM=1
-NPROC_PER_NODE=1
 
 # torchrun \
 # --nnodes $WORKER_NUM \
@@ -33,13 +31,13 @@ deepspeed llava/train/train_mem.py \
     --model_name_or_path Qwen/Qwen3-8B \
     --version qwen \
     --deepspeed ./scripts/zero3.json \
-    --pretrain_mm_mlp_adapter /qumulo/shared_data/aofei_summer/RegTok/RegLLM/checkpoints/i2t_pre_region_03/checkpoint-6737/mm_projector.bin \
+    --pretrain_mm_mlp_adapter /qumulo/shared_data/aofei_summer/RegTok/RegLLM/checkpoints/i2t_pre_region_final/mm_projector.bin \
     --data_path /qumulo/shared_data/aofei_summer/data/LVLM/HuatuoGPT/60k_PubMedVision_InstructionTuning_VQA.json \
     --image_folder /qumulo/shared_data/aofei_summer/data/LVLM/HuatuoGPT \
     --vision_tower $VISION_TOWER_CKPT \
     --mm_vision_vq_type RegTok \
     --regtok_config_path /qumulo/shared_data/aofei_summer/RegTok/source/tokenizer/regtok_config.yaml \
-    --regtok_weight_path /qumulo/shared_data/aofei_summer/RegTok/source/RegTok_pipeline_full_wo_quant/002-RegTok/checkpoints/0079280.pt \
+    --regtok_weight_path /qumulo/shared_data/aofei_summer/intern_records/RegTok/checkpoints/RegTok_pipeline_full_wo_quant/002-RegTok/checkpoints/0079280.pt \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter False \
     --mm_vision_tuning_embedding False \
@@ -64,9 +62,10 @@ deepspeed llava/train/train_mem.py \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 2048 \
-    --gradient_checkpointing True \
+    --gradient_checkpointing False \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to wandb \
     --run_name ${SFT_TASK_NAME} \
-    --use_region_tokens True
+    --use_region_tokens True \
+    --use_sep_proj False

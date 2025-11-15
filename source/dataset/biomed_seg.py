@@ -103,18 +103,20 @@ class BiomedSegDataset(Dataset):
             roots = meta['roots']
             mask_roots = meta['mask_roots']
             json_paths = meta['json_paths']
-            assert len(roots) == len(mask_roots) == len(json_paths)
+            modality_labels = meta['modality_labels']
+            assert len(roots) == len(mask_roots) == len(json_paths) == len(modality_labels)
         else:
             roots = [root]
             mask_roots = [mask_root]
             json_paths = [json_path]
+            modality_labels = [None]
 
         self.imgid_to_anns = {}
         self.image_infos = {}
         self.categories = None
         self.num_classes = None
         all_annotations = []
-        for r, m, j in zip(roots, mask_roots, json_paths):
+        for r, m, j, modality in zip(roots, mask_roots, json_paths, modality_labels):
             with open(j, 'r') as f:
                 data = json.load(f)
             annotations = data['annotations']
@@ -130,6 +132,7 @@ class BiomedSegDataset(Dataset):
                 ann['image_id'] = unique_img_id
                 ann['file_name'] = os.path.join(r, ann['file_name'])
                 ann['mask_file'] = os.path.join(m, ann['mask_file'])
+                ann['modality_label'] = int(modality) if modality is not None else -1
                 if unique_img_id not in self.imgid_to_anns:
                     self.imgid_to_anns[unique_img_id] = []
                 self.imgid_to_anns[unique_img_id].append(ann)
@@ -159,6 +162,7 @@ class BiomedSegDataset(Dataset):
         mask_list = []
         bbox_list = []
         category_list = []
+        modality_list = []
         sentences_list = []
         for ann in anns:
             mask = Image.open(ann['mask_file']).convert('L')
@@ -168,6 +172,8 @@ class BiomedSegDataset(Dataset):
             bbox_list.append(torch.tensor(ann['bbox'], dtype=torch.float32))
             category_list.append(ann['category_id'])
             sentences_list.append([s['sent'] for s in ann.get('sentences', [])])
+            modality_list.append(ann['modality_label']) # only use the first modality label
+        modality_label = int(modality_list[0])
 
         if len(mask_list) > 0:
             masks = torch.stack(mask_list, dim=0)
@@ -176,6 +182,7 @@ class BiomedSegDataset(Dataset):
         bboxes = torch.stack(bbox_list, dim=0) if bbox_list else torch.zeros((0, 4), dtype=torch.float32)
         categories = torch.tensor(category_list, dtype=torch.long) if category_list else torch.zeros((0,), dtype=torch.long)
         class_labels = categories
+        # modality_labels = torch.tensor(modality_list, dtype=torch.long) if modality_list else torch.zeros((0,), dtype=torch.long)
 
         # Encode sentences if text_encoder is provided
         text_embeddings = None
@@ -188,5 +195,5 @@ class BiomedSegDataset(Dataset):
             texts = [self.text_tokenizer(cls_text).to(self.device, non_blocking=True) for cls_text in random_sentences]
             texts = torch.cat(texts, dim=0)
             text_embeddings = self.text_encoder(texts).to("cpu") # shape [num_masks, dimension]
-
-        return image, masks, class_labels, text_embeddings
+            # print(text_embeddings.shape, "text embeddings")
+        return image, masks, class_labels, text_embeddings, modality_label

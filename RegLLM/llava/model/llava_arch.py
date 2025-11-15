@@ -32,15 +32,20 @@ class LlavaMetaModel:
         super(LlavaMetaModel, self).__init__(config)
 
         if hasattr(config, "mm_vision_tower"):
-            self.vision_tower = build_vision_tower(config, delay_load=True)
-            config.mm_hidden_size = self.vision_tower.hidden_size
+            # self.vision_tower = build_vision_tower(config, delay_load=True)
+            # config.mm_hidden_size = self.vision_tower.hidden_size
 
             self.mm_projector = build_vision_projector(config)
+        if hasattr(config, "use_sep_proj"):
+            self.use_sep_proj = config.use_sep_proj
+            if self.use_sep_proj:
+                print("Initialized region_mm_projector at the first beginning.")
+                self.region_mm_projector = build_vision_projector(config)
 
-            if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
-                self.image_newline = nn.Parameter(
-                    torch.empty(config.hidden_size, dtype=self.dtype)
-                )
+            # if 'unpad' in getattr(config, 'mm_patch_merge_type', ''):
+            #     self.image_newline = nn.Parameter(
+            #         torch.empty(config.hidden_size, dtype=self.dtype)
+            #     )
 
     def get_vision_tower(self):
         vision_tower = getattr(self, 'vision_tower', None)
@@ -77,7 +82,8 @@ class LlavaMetaModel:
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
         self.config.mm_patch_merge_type = mm_patch_merge_type
-        self.region_mm_projector = None
+        if not hasattr(self, 'region_mm_projector'):
+            self.region_mm_projector = None
         if getattr(self, 'mm_projector', None) is None:
             self.mm_projector = build_vision_projector(self.config)
 
@@ -86,25 +92,29 @@ class LlavaMetaModel:
                 self.image_newline = nn.Parameter(
                     torch.randn(self.config.hidden_size, dtype=self.dtype) * embed_std
                 )
+            print("Initialized region mm_projector.", model_args.use_region_tokens, model_args.use_sep_proj)
             if model_args.use_region_tokens and model_args.use_sep_proj:
                 self.region_mm_projector = build_vision_projector(self.config)
         else:
             # In case it is frozen by LoRA
             for p in self.mm_projector.parameters():
                 p.requires_grad = True
-            if hasattr(self, "region_mm_projector"):
+            print("mm_projector parameters unfrozen.")
+            if hasattr(self, "region_mm_projector") and self.region_mm_projector is not None:
                 for p in self.region_mm_projector.parameters():
                     p.requires_grad = True
+                print("region_mm_projector parameters unfrozen.")
 
         if pretrain_mm_mlp_adapter is not None:
             mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
             def get_w(weights, keyword):
                 return {k.split(keyword + '.')[1]: v for k, v in weights.items() if keyword in k}
 
-            self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'), strict=False)
+            missing, unexpected = self.mm_projector.load_state_dict(get_w(mm_projector_weights, 'mm_projector'), strict=False)
+            print(f"Unexpected keys in mm_projector: {unexpected}")
             if self.region_mm_projector is not None:
-                self.region_mm_projector.load_state_dict(get_w(mm_projector_weights, 'region_mm_projector'))
-
+                missing, unexpected = self.region_mm_projector.load_state_dict(get_w(mm_projector_weights, 'region_mm_projector'))
+                print(f"Unexpected keys in region_mm_projector: {unexpected}")
 
 def unpad_image(tensor, original_size):
     """
@@ -147,9 +157,13 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images):
-        image_features = self.get_model().get_vision_tower()(images)
+        image_features_ = self.get_model().get_vision_tower()(images)
+        multi_scale_image_features = None
+        if isinstance(image_features_, tuple):
+            image_features, multi_scale_image_features = image_features_
         region_features = None
-        if hasattr(self.get_model(), "region_mm_projector"):
+        # print(image_features.shape, "image features 01")
+        if hasattr(self.get_model(), "region_mm_projector") and self.get_model().region_mm_projector is not None:
             # print(image_features.size(), "image features before split")
             image_features, region_features = image_features[..., :576, :], image_features[..., 576:, :]
         image_features = self.get_model().mm_projector(image_features)
@@ -158,7 +172,8 @@ class LlavaMetaForCausalLM(ABC):
             if self.get_model().region_mm_projector is not None:
                 region_features = self.get_model().region_mm_projector(region_features)
                 image_features = torch.cat((image_features, region_features), dim=-2)
-        return image_features
+        # print(image_features.shape, "image features")
+        return image_features, multi_scale_image_features
 
     def prepare_inputs_labels_for_multimodal(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
@@ -172,7 +187,7 @@ class LlavaMetaForCausalLM(ABC):
             if type(images) is list:
                 images = [x.unsqueeze(0) if x.ndim == 3 else x for x in images]
             concat_images = torch.cat([image for image in images], dim=0)
-            image_features = self.encode_images(concat_images)
+            image_features, multi_scale_image_features = self.encode_images(concat_images)
             if len(image_features.shape) == 2:
                 image_features = image_features.unsqueeze(0)
             split_sizes = [image.shape[0] for image in images]
@@ -219,7 +234,7 @@ class LlavaMetaForCausalLM(ABC):
             else:
                 raise ValueError(f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}")
         else:
-            image_features = self.encode_images(images)
+            image_features, multi_scale_image_features = self.encode_images(images)
         if type(image_features) is not list and len(image_features.shape) == 2:
             image_features = image_features.unsqueeze(0)
         # print(image_features.size(), "image_features")
@@ -351,7 +366,7 @@ class LlavaMetaForCausalLM(ABC):
         # decoded_targets = self.tokenizer.decode(target_input_ids)
         # print("Decoded prediction targets:", decoded_targets)
 
-        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels
+        return None, position_ids, attention_mask, past_key_values, new_input_embeds, new_labels, multi_scale_image_features
 
     def initialize_vision_tokenizer(self, model_args, tokenizer):
         # for testing

@@ -17,14 +17,14 @@ export WANDB_API_KEY="10bcf42e60bfd806f25e11d5e055aa2c19ede264"
 
 # export CUDA_VISIBLE_DEVICES="1"
 
-export PRETRAIN_OUT_PATH=checkpoints/i2t_pre_region_03_test
+export PRETRAIN_OUT_PATH=checkpoints/i2t_pre_region_final_sep
 export SFT_OUT_PATH=checkpoints/i2t_sft
 export VISION_TOWER_CKPT="/qumulo/shared_data/aofei_summer/CLIPs/unimed_clip_vit_l14.pt"
 
 PRETRAIN_TASK_NAME=$(basename "${PRETRAIN_OUT_PATH%/}")
 SFT_TASK_NAME=$(basename "${SFT_OUT_PATH%/}")
 WORKER_NUM=1
-NPROC_PER_NODE=1
+NPROC_PER_NODE=2
 ### pretrain ####
 
     # --deepspeed ./scripts/zero2.json \
@@ -44,7 +44,7 @@ torchrun \
     --vision_tower $VISION_TOWER_CKPT \
     --mm_vision_vq_type RegTok \
     --regtok_config_path /qumulo/shared_data/aofei_summer/RegTok/source/tokenizer/regtok_config.yaml \
-    --regtok_weight_path /qumulo/shared_data/aofei_summer/RegTok/source/RegTok_pipeline_full_wo_quant/002-RegTok/checkpoints/0079280.pt \
+    --regtok_weight_path /qumulo/shared_data/aofei_summer/intern_records/RegTok/checkpoints/RegTok_pipeline_full_wo_quant/002-RegTok/checkpoints/0079280.pt \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter True \
     --mm_vision_tuning_embedding False \
@@ -72,4 +72,5 @@ torchrun \
     --lazy_preprocess True \
     --report_to wandb \
     --run_name ${PRETRAIN_TASK_NAME} \
-    --use_region_tokens True
+    --use_region_tokens True \
+    --use_sep_proj True

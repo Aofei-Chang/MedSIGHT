@@ -12,6 +12,7 @@ import math
 
 import torch.nn.functional as F
 from .criterion import hungarian_assign, compute_losses_with_indices
+from .criterion import hungarian_assign_with_semantic
 
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -569,50 +570,44 @@ class ConvFFN(nn.Module):
         h2 = self.dw(h2).permute(0,2,3,1).contiguous().view(B, HW, -1)
         return self.fc2(h + h2)
 
-# class BiDirectionalBlock(nn.Module):
-#     """
-#     Minimal, norm-consistent upgrades:
-#       - Keep the LNs inside PerceiverCrossAttention and FeedForward
-#       - Add learned gates on both attention residuals
-#       - Use ConvFFN (locality) on the image branch
-#     """
-#     def __init__(self, dim, dim_head=64, heads=8, ff_mult=4):
-#         super().__init__()
-#         # Q->I: queries attend to image
-#         self.region_to_image = PerceiverCrossAttention(dim=dim, dim_head=dim_head, heads=heads)
-#         self.g_q2i = nn.Parameter(torch.tensor(0.0))
-#         self.ff_region = FeedForward(dim, mult=ff_mult)  # already has LayerNorm at start
+class LightweightRegionDecoder(nn.Module):
+    """
+    Lightweight decoder for reconstructing queries and masks after quantization.
+    Fuses integrated_codes with image features (optionally multi-scale).
+    Uses positional encoding for image features.
+    Uses previous layer's attention mask prediction for masked attention.
+    """
+    def __init__(self, dim, code_dim, use_seg=False, num_layers=3, use_multiscale=False, num_classes=None, num_heads=8, max_queries=512):
+        super().__init__()
+        self.use_multiscale = use_multiscale
+        self.use_seg = use_seg
+        # Use a 2-layer MLP with GELU and LayerNorm for from_code
+        if code_dim != dim:
+            self.from_code = nn.Sequential(
+                nn.Linear(code_dim, dim, bias=True),
+                nn.GELU(),
+                nn.LayerNorm(dim),
+                nn.Linear(dim, dim, bias=True),
+                nn.GELU(),
+                nn.LayerNorm(dim)
+            )
+        else:
+            self.from_code = nn.Identity()
+        if self.use_seg:
+            self.segmentation_cls_head_quant = SegmentationHead(dim=dim, num_classes=num_classes)
 
-#         # I->Q: image attends to queries
-#         self.image_to_region = PerceiverCrossAttention(dim=dim, dim_head=dim_head, heads=heads)
-#         self.g_i2q = nn.Parameter(torch.tensor(0.0))
-#         self.ff_image  = ConvFFN(dim, mult=ff_mult)      # no extra LN here
-
-#     def forward(self, region_queries, image_features, attn_mask=None, query_pos=None):
-#         B, H, W, D = image_features.shape
-#         x_flat = image_features.view(B, H*W, D)
-#         q = region_queries if query_pos is None else (region_queries + query_pos)
-
-#         # --- Q -> I (uses internal LNs in PerceiverCrossAttention) ---
-#         q_upd = self.region_to_image(
-#             x_flat.unsqueeze(1),        # K,V from image (B,1,HW,D)
-#             q.unsqueeze(1),             # Q from queries (B,1,N,D)
-#             attn_mask=attn_mask
-#         ).squeeze(1)
-#         q = q + torch.sigmoid(self.g_q2i) * q_upd
-#         q = self.ff_region(q) + q        # FeedForward has LN inside (pre-norm style)
-
-#         # --- I -> Q (pixels attend to queries) ---
-#         x_upd = self.image_to_region(
-#             q.unsqueeze(1),             # K,V from queries
-#             x_flat.unsqueeze(1),        # Q from pixels
-#             attn_mask=None              # pass attn_mask here too if you want masked I->Q
-#         ).squeeze(1)
-#         x_flat = x_flat + torch.sigmoid(self.g_i2q) * x_upd
-#         x_flat = self.ff_image(x_flat, H, W) + x_flat   # conv-locality, no extra LN
-
-#         return q, x_flat.view(B, H, W, D)
-
+    def forward(self, codes, image_features=None, multi_scale_image_features=None, interp_attn_mask=None):
+        # codes: (b, n, d)
+        # image_features: (b, h, w, d) -- final image features from RegionPerceiver
+        region_latents = self.from_code(codes)
+        image_feats_last_layer = None
+        if self.use_seg:
+            if multi_scale_image_features is not None:
+                image_feats_last_layer = multi_scale_image_features[-1]
+            else:
+                image_feats_last_layer = image_features
+        
+        return region_latents, image_feats_last_layer
 
 class PositionEmbeddingSine(nn.Module):
     """
@@ -673,111 +668,6 @@ class PositionEmbeddingSine(nn.Module):
         return "\n".join(lines)
 
 
-class CodeIntegrationTransformer(nn.Module):
-    """
-    Integrate hierarchical codes with causal attention.
-    """
-    def __init__(self, code_dim, num_layers=1, num_heads=4):
-        super().__init__()
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=code_dim, nhead=num_heads, batch_first=True
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-
-    def forward(self, codes_seq):
-        # codes_seq: (b, seq_len, code_dim)
-        seq_len = codes_seq.size(1)
-        # Causal mask: only attend to previous codes
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, device=codes_seq.device), diagonal=1).bool()
-        return self.transformer(codes_seq, mask=causal_mask)
-
-
-class LightweightRegionDecoder(nn.Module):
-    """
-    Lightweight decoder for reconstructing queries and masks after quantization.
-    Fuses integrated_codes with image features (optionally multi-scale).
-    Uses positional encoding for image features.
-    Uses previous layer's attention mask prediction for masked attention.
-    """
-    def __init__(self, dim, code_dim, num_layers=3, use_multiscale=False, num_classes=None, num_heads=8, max_queries=512):
-        super().__init__()
-        self.use_multiscale = use_multiscale
-        # Use a 2-layer MLP with GELU and LayerNorm for from_code
-        self.from_code = nn.Sequential(
-            nn.Linear(code_dim, dim, bias=True),
-            nn.GELU(),
-            nn.LayerNorm(dim),
-            nn.Linear(dim, dim, bias=True),
-            nn.GELU(),
-            nn.LayerNorm(dim)
-        )
-        self.cross_attn_blocks = nn.ModuleList([
-            PerceiverCrossAttention(dim=dim, dim_head=64, heads=num_heads)
-            for _ in range(num_layers)
-        ])
-        self.norms = nn.ModuleList([nn.LayerNorm(dim) for _ in range(num_layers)])
-        self.ff_layers = nn.ModuleList([FeedForward(dim, mult=2) for _ in range(num_layers)])
-        self.ff_norms = nn.ModuleList([nn.LayerNorm(dim) for _ in range(num_layers)])
-        self.position_encoding = PositionEmbeddingSine(dim // 2, normalize=True)
-        self.segmentation_cls_head_quant = SegmentationHead(dim=dim, num_classes=num_classes, num_heads=num_heads)
-        # Use an embedding for region queries, like RegionPerceiver
-        self.region_position_embed = nn.Embedding(max_queries, dim)
-        nn.init.xavier_uniform_(self.region_position_embed.weight)
-
-    def forward(self, codes, image_features, multi_scale_image_features=None, interp_attn_mask=None):
-        # codes: (b, n, d)
-        # image_features: (b, h, w, d) -- final image features from RegionPerceiver
-        region_latents = self.from_code(codes)
-        b, n, d = region_latents.shape
-
-        # Use multi-scale features if provided, else repeat the same feature for all layers
-        if self.use_multiscale and multi_scale_image_features is not None and len(multi_scale_image_features) >= len(self.cross_attn_blocks):
-            image_feats_per_layer = multi_scale_image_features[-len(self.cross_attn_blocks):]
-        else:
-            image_feats_per_layer = [image_features for _ in range(len(self.cross_attn_blocks))]
-
-        prev_attn_mask = None  # Initialize with input mask
-
-        for i, (attn, norm, ff, ff_norm) in enumerate(zip(self.cross_attn_blocks, self.norms, self.ff_layers, self.ff_norms)):
-            x = image_feats_per_layer[i]
-            pos_enc = self.position_encoding(x)
-            x = x + pos_enc
-
-            # Add region positional embedding (like RegionPerceiver)
-            region_pos = self.region_position_embed.weight[:n].unsqueeze(0).expand(b, n, d)
-            region_latents_with_pos = region_latents + region_pos
-
-            # Prepare keys/values (image features) as (b, seq, d)
-            b_img, h, w, d_img = x.shape
-            x_flat = x.view(b_img, h * w, d_img)  # (b, hw, d)
-            # Prepare queries (region latents) as (b, n, d)
-            queries = region_latents  # (b, n, d)
-
-            # Cross-attention: queries attend to image features
-            out = attn(
-                x_flat.unsqueeze(1),
-                region_latents_with_pos.unsqueeze(1),
-                attn_mask=prev_attn_mask
-            )
-            out = norm(out)
-            out = out.squeeze(1)
-            out = ff(out) + out
-            out = ff_norm(out)
-            region_latents = out
-
-            # Predict new attention mask for next layer using decoder's own segmentation_cls_head_quant
-            if i < len(self.cross_attn_blocks) - 1:
-                with torch.no_grad():
-                    _, _, attn_mask, interp_attn_mask = self.segmentation_cls_head_quant(region_latents, x, output_mask=True)
-                if self.use_multiscale:
-                    prev_attn_mask = interp_attn_mask
-                else:
-                    prev_attn_mask = attn_mask
-
-        # Return processed latents and last image features (with pos enc)
-        return region_latents, x
-
-
 class RegionPerceiver(nn.Module):
     """
     Region Perceiver with Multi-scale Understanding and Iterative Upsampling.
@@ -786,7 +676,7 @@ class RegionPerceiver(nn.Module):
     """
     def __init__(self, dim=512, num_queries=16, num_stacks=1, num_stages=2, dim_head=64, heads=8, ff_mult=4, num_classes=None, do_quantize=False, 
                  quantizer=None, quantize_intermediate=False, finetune_codebook_only=False, upsample_mode: str = "conv",
-                 use_self_attn = False, *args, **kwargs):
+                 use_self_attn = False, quant_use_seg=False, *args, **kwargs):
         super().__init__()
         self.num_queries = num_queries
         self.num_stacks = num_stacks
@@ -795,7 +685,13 @@ class RegionPerceiver(nn.Module):
         self.num_stages = num_stages
         self.num_classes = num_classes
         self.quantizer = quantizer  # <-- add quantizer for hierarchical codes
-        self.code_dim = quantizer.e_dim if quantizer is not None else -1
+        if quantizer is not None:
+            if hasattr(quantizer, "e_dim"):
+                self.code_dim = quantizer.e_dim if quantizer is not None else -1
+            else:
+                self.code_dim = quantizer.codebooks["0"].e_dim
+        else:
+            self.code_dim = -1
         self.do_quantize = do_quantize
         self.quantize_intermediate = quantize_intermediate  # <-- control intermediate quantization
         self.finetune_codebook_only = finetune_codebook_only
@@ -839,28 +735,48 @@ class RegionPerceiver(nn.Module):
         self.segmentation_cls_head = SegmentationHead(dim=dim, num_classes=num_classes, num_heads=heads)
 
         # A lightweight causal attention layer for modeling the codes from coarse to fine
-        if self.quantize_intermediate:
-            self.code_integration = CodeIntegrationTransformer(code_dim=dim, num_layers=1, num_heads=4)
-        else:
-            self.code_integration = None
+        self.code_integration = None
         self.code_decoder, self.to_code = None, None
         if self.do_quantize:
             # Use a 2-layer MLP with GELU and LayerNorm for to_code
-            self.to_code = nn.Sequential(
-                nn.Linear(self.dim, self.dim, bias=True),
-                nn.GELU(),
-                nn.LayerNorm(self.dim),
-                nn.Linear(self.dim, self.code_dim, bias=True),
-                nn.GELU(),
-                nn.LayerNorm(self.code_dim)
-            )
+            if self.dim != self.code_dim:
+                self.to_code = nn.Sequential(
+                    nn.Linear(self.dim, self.dim, bias=True),
+                    nn.GELU(),
+                    nn.LayerNorm(self.dim),
+                    nn.Linear(self.dim, self.code_dim, bias=True),
+                    nn.GELU(),
+                    nn.LayerNorm(self.code_dim)
+                )
+            else:
+                self.to_code = nn.Identity()
             self.code_decoder = LightweightRegionDecoder(
-                dim=dim, code_dim=self.code_dim, num_layers=3, use_multiscale=True,
-                num_classes=num_classes, num_heads=heads
+                dim=dim, code_dim=self.code_dim, use_seg=quant_use_seg, num_classes=num_classes
             )
+            print(num_classes, "num_classes")
+        self.semantic_proj = None
 
-    def forward(self, image_features, mask_labels=None, class_labels=None, loss_type="dice_bce", mask=None, do_quantize=False, deep_supervision=False, eos_coef=0.1,
-                vq_coef=1.0, commit_coef=0.25, entropy_coef=0.01, semantic_labels=None, semantic_temperature=1.0):
+        self.image_features_temp = None
+
+    def decode_mask(self, region_codes):
+
+        outputs = self.forward(image_features=self.image_features_temp, region_queries=region_codes)
+
+        (
+            current_region_queries, multi_scale_image_features, seg_logits_normal, class_logits_normal,
+            dice_loss, bce_loss, cls_loss,
+            aux_outputs,
+            hierarchical_codes, hierarchical_masks, hierarchical_gt_masks, hierarchical_losses,
+            quantization_losses, total_quantization_loss,
+            dice_loss_normal, dice_loss_quant, cls_loss_normal, cls_loss_quant,
+            total_recon_loss, quantizer_info,
+            semantic_loss
+        ) = outputs
+
+        return seg_logits_normal, class_logits_normal
+
+    def forward(self, image_features, region_queries=None, mask_labels=None, class_labels=None, modality_label=None, loss_type="dice_bce", mask=None, do_quantize=False, deep_supervision=False, eos_coef=0.1,
+                vq_coef=1.0, commit_coef=0.25, recon_coef=1.0, entropy_coef=0.01, semantic_labels=None, semantic_temperature=1.0):
         self.do_quantize = do_quantize and self.do_quantize
         """
         image_features: (b, h0, w0, d) - coarse feature map from ViT
@@ -878,12 +794,17 @@ class RegionPerceiver(nn.Module):
             quantization_losses: dict of quantization losses (if do_quantize)
         """
         b, h0, w0, d = image_features.shape
+        self.image_features_temp = image_features # save for decoding mask
+
         self.dtype = self.init_cross_norm.weight.dtype
         # print(image_features.dtype, self.region_queries.dtype, self.dtype, "bchw")
+        if region_queries is None:
+            region_queries = self.region_queries
+            region_queries = region_queries.expand(b, -1, -1) # (b, N, d)
         if image_features.dtype != self.dtype:
             image_features = image_features.to(self.dtype)
-            self.region_queries = self.region_queries.to(self.dtype)
-        region_queries = self.region_queries.expand(b, -1, -1)  # (b, N, d)
+            region_queries = region_queries.to(self.dtype)
+        # print(region_queries.size(), "region_queries size")
         # Add positional encoding to image features (like Mask2Former)
         pos_enc = self.position_encoding(image_features)  # (b, h0, w0, d)
         image_features = image_features + pos_enc
@@ -913,7 +834,8 @@ class RegionPerceiver(nn.Module):
             "vq_loss": [],
             "commit_loss": [],
             "entropy_loss": [],
-            "codebook_usage": []
+            "codebook_usage": [],
+            "recon_loss": []
         }
         stage_seg_logits = None
         for stage in range(self.num_stages):
@@ -951,103 +873,41 @@ class RegionPerceiver(nn.Module):
             current_image_features = input_image_features
             multi_scale_image_features.append(current_image_features)
             aux_outputs.append((seg_logits, class_logits))
-            # # Bi-directional transformer block
-            # current_region_queries, updated_image_features = self.bi_blocks[stage](
-            #     current_region_queries, upsampled_image_features, attn_mask=interp_attn_mask, query_pos=None
-            # )
-            # # multi_scale_image_features.append(updated_image_features)
-            # current_image_features = updated_image_features
-
-            # for i in range(self.num_stacks - 1):
-            #     current_region_queries, updated_image_features = self.bi_blocks[stage * self.num_stacks + i](
-            #         current_region_queries, updated_image_features, attn_mask=interp_attn_mask, query_pos=None
-            #     )
-                
-            #     current_image_features = updated_image_features
-            #     seg_logits, class_logits, attn_mask, interp_attn_mask = self.segmentation_cls_head(current_region_queries, current_image_features)
-            #     # aux_outputs.append((seg_logits, class_logits))
-            # multi_scale_image_features.append(updated_image_features)
-
-            # Hierarchical quantization and mask decoding
-            # if self.quantize_intermediate and self.do_quantize and self.quantizer is not None:
-            #     # Quantize region queries at this stage
-            #     quantized_queries, (vq_loss, commit_loss, entropy_loss, codebook_usage), _ = self.quantizer(current_region_queries)
-            #     hierarchical_codes.append(quantized_queries)
-            #     quantization_losses["vq_loss"].append(vq_loss)
-            #     quantization_losses["commit_loss"].append(commit_loss)
-            #     quantization_losses["entropy_loss"].append(entropy_loss)
-            #     quantization_losses["codebook_usage"].append(codebook_usage)
-            #     # Decode mask from quantized queries
-            #     stage_seg_logits, stage_class_logits, _, interp_attn_mask = self.segmentation_cls_head(quantized_queries, current_image_features)
-            #     hierarchical_masks.append(stage_seg_logits)
-            #     # Interpolate GT mask to current resolution for coarse supervision
-            #     if mask_labels is not None:
-            #         # mask_labels: list of [ (num_gt, H_gt, W_gt) ]
-            #         # Interpolate each GT mask to current image feature resolution
-            #         b, n, h, w = stage_seg_logits.shape
-            #         coarsened_gt = []
-            #         for i in range(len(mask_labels)):
-            #             gt_masks = mask_labels[i]  # (num_gt, H_gt, W_gt)
-            #             num_gt, H_gt, W_gt = gt_masks.shape
-            #             gt_masks_interp = torch.nn.functional.interpolate(
-            #                 gt_masks.unsqueeze(1), size=(h, w), mode="bilinear", align_corners=False
-            #             ).squeeze(1)
-            #             coarsened_gt.append(gt_masks_interp)
-            #         # Compute segmentation loss at this stage
-            #         _, dice_loss, bce_loss, cls_loss = hungarian_assign(
-            #             stage_seg_logits, coarsened_gt, stage_class_logits if self.num_classes is not None else None,
-            #             class_labels, self.num_classes, eos_coef, loss_type
-            #         )
-            #         hierarchical_losses.append((dice_loss, bce_loss, cls_loss))
-            #         hierarchical_gt_masks.append(coarsened_gt)
-            #     aux_outputs.append((stage_seg_logits, stage_class_logits))
-            # else:
-                # Fallback: just append outputs for deep supervision
-            # seg_logits, class_logits, attn_mask, interp_attn_mask = self.segmentation_cls_head(current_region_queries, current_image_features)
-            # aux_outputs.append((seg_logits, class_logits))
-                # print(interp_attn_mask.size(), "test-02")
+            
 
         # --- Integrate hierarchical codes with causal attention ---
         integrated_codes, quantizer_info = None, None
-        if self.quantize_intermediate and self.do_quantize and self.quantizer is not None and len(hierarchical_codes) > 0:
-            # Stack codes: (b, num_stages, num_queries, dim)
-            codes_tensor = torch.stack(hierarchical_codes, dim=1)  # (b, num_stages, num_queries, dim)
-            # Transpose to (b, num_queries, num_stages, dim)
-            codes_tensor = codes_tensor.transpose(1, 2)  # (b, num_queries, num_stages, dim)
-            b, num_queries, num_stages, dim = codes_tensor.shape
-            # Reshape to (b * num_queries, num_stages, dim)
-            codes_seq = codes_tensor.reshape(b * num_queries, num_stages, dim)
-            # Pass through causal transformer
-            integrated = self.code_integration(codes_seq)  # (b * num_queries, num_stages, dim)
-            # Take the last output for each sequence (finest stage)
-            integrated_last = integrated[:, -1, :]  # (b * num_queries, dim)
-            # Reshape back to (b, num_queries, dim)
-            integrated_codes = integrated_last.view(b, num_queries, dim)
-        else:
-            # Only quantize/final loss at last stage if requested
-            if self.do_quantize and self.quantizer is not None:
-                region_queries_for_quant = self.to_code(current_region_queries)
+        if self.do_quantize and self.quantizer is not None:
+            region_queries_for_quant = self.to_code(current_region_queries)
+            try:
+                integrated_codes, (vq_loss, commit_loss, entropy_loss, codebook_usage), quantizer_info = self.quantizer(region_queries_for_quant, modality_label=modality_label, return_infos=True)
+                # print(quantizer_info)
+            except Exception as e:
                 integrated_codes, (vq_loss, commit_loss, entropy_loss, codebook_usage), quantizer_info = self.quantizer(region_queries_for_quant)
-                quantization_losses["vq_loss"].append(vq_loss)
-                quantization_losses["commit_loss"].append(commit_loss)
-                quantization_losses["entropy_loss"].append(entropy_loss)
-                quantization_losses["codebook_usage"].append(codebook_usage)
-            else:
-                integrated_codes = current_region_queries
+
+            quantization_losses["vq_loss"].append(vq_loss)
+            quantization_losses["commit_loss"].append(commit_loss)
+            quantization_losses["entropy_loss"].append(entropy_loss)
+            quantization_losses["codebook_usage"].append(codebook_usage)
+        else:
+            integrated_codes = current_region_queries
 
         seg_logits_normal, class_logits_normal, _, _ = self.segmentation_cls_head(current_region_queries, current_image_features, output_mask=False)
         seg_logits_quant, class_logits_quant = None, None
-        decoded_latents = None  # <-- add this for distill loss
+        decoded_latents = integrated_codes  # <-- initialize as codes
         if self.do_quantize and self.quantizer is not None:
+            # print("use code decoder for reconstruction")
             decoded_latents, decoded_image_features = self.code_decoder(integrated_codes, current_image_features, multi_scale_image_features)
-            seg_logits_quant, class_logits_quant, _, _ = self.code_decoder.segmentation_cls_head_quant(decoded_latents, decoded_image_features, output_mask=False)
+            if decoded_image_features is not None:
+                seg_logits_quant, class_logits_quant, _, _ = self.code_decoder.segmentation_cls_head_quant(decoded_latents, decoded_image_features, output_mask=False)
             # seg_logits_quant, class_logits_quant, _, _ = self.segmentation_cls_head(decoded_latents, decoded_image_features, output_mask=False)
-
+        
         # --- Distillation / Reconstruction Loss ---
-        distill_loss = None
-        # if decoded_latents is not None:
-        #     # L2 loss between decoded_latents and current_region_queries
-        #     distill_loss = F.mse_loss(decoded_latents, current_region_queries)
+        # Compute reconstruction loss between decoded latents and original region queries (L2)
+        recon_loss = None
+        if decoded_latents is not None:
+            recon_loss = F.mse_loss(decoded_latents, current_region_queries)
+            quantization_losses["recon_loss"].append(recon_loss)
 
 
         # Final mask loss (full resolution)
@@ -1057,48 +917,60 @@ class RegionPerceiver(nn.Module):
         indices_normal = None
         semantic_loss = None
         if mask_labels is not None:
-            # Compute Hungarian indices using normal output
-            indices_normal, dice_loss_normal, bce_loss_normal, cls_loss_normal = hungarian_assign(
-                seg_logits_normal, mask_labels, class_logits_normal, class_labels, self.num_classes, eos_coef, loss_type
-            )
-            # print(dice_loss_normal, cls_loss_normal, "normal loss!")
-            if seg_logits_quant is not None:
-                indices, dice_loss_quant, bce_loss_quant, cls_loss_quant = hungarian_assign(
-                    seg_logits_quant, mask_labels, class_logits_quant, class_labels, self.num_classes, eos_coef, loss_type
+            # Compute Hungarian indices using normal output; include semantic cost if semantic_labels provided
+            if semantic_labels is not None and current_region_queries is not None:
+                proj_queries = current_region_queries
+                if self.semantic_proj is not None:
+                    proj_queries = self.semantic_proj(current_region_queries)
+
+                indices_normal, dice_loss_normal, bce_loss_normal, cls_loss_normal, semantic_loss_val = hungarian_assign_with_semantic(
+                    seg_logits_normal, mask_labels, class_logits_normal, class_labels, self.num_classes, eos_coef,
+                    loss_type=loss_type, current_region_queries=proj_queries, semantic_labels=semantic_labels, semantic_temperature=semantic_temperature
                 )
-                # Use the same indices for quantized output
-                # dice_loss_quant, bce_loss_quant, cls_loss_quant = compute_losses_with_indices(
-                #     seg_logits_quant, mask_labels, class_logits_quant, class_labels, self.num_classes, eos_coef, loss_type, indices_normal
+                semantic_loss = semantic_loss_val
+            else:
+                indices_normal, dice_loss_normal, bce_loss_normal, cls_loss_normal = hungarian_assign(
+                    seg_logits_normal, mask_labels, class_logits_normal, class_labels, self.num_classes, eos_coef, loss_type
+                )
+                semantic_loss = None
+            # print(semantic_loss, "semantic loss!!")
+            # print(dice_loss_normal, cls_loss_normal, "normal loss!")
+            quantizer_info.update({
+                    "hungarian_indices": indices_normal,
+                })
+            if seg_logits_quant is not None:
+                # indices, dice_loss_quant, bce_loss_quant, cls_loss_quant = hungarian_assign(
+                #     seg_logits_quant, mask_labels, class_logits_quant, class_labels, self.num_classes, eos_coef, loss_type
                 # )
-                # Combine losses by averaging
-                # if not self.finetune_codebook_only:
-                #     dice_loss = 0.5 * (dice_loss_normal + dice_loss_quant)
-                #     bce_loss = 0.5 * (bce_loss_normal + bce_loss_quant)
-                #     if cls_loss_normal is not None and cls_loss_quant is not None:
-                #         cls_loss = 0.5 * (cls_loss_normal + cls_loss_quant)
-                #     elif cls_loss_normal is None and cls_loss_quant is not None:
-                #         cls_loss = cls_loss_quant
-                #     elif cls_loss_quant is None and cls_loss_normal is not None:
-                #         cls_loss = cls_loss_normal
-                #     else:
-                #         cls_loss = None
-                # else:
+                # Use the same indices for quantized output
+                dice_loss_quant, bce_loss_quant, cls_loss_quant = compute_losses_with_indices(
+                    seg_logits_quant, mask_labels, class_logits_quant, class_labels, self.num_classes, eos_coef, loss_type, indices_normal
+                )
                 bce_loss = bce_loss_quant
                 dice_loss = dice_loss_quant
                 cls_loss = cls_loss_quant
+                if quantizer_info is None:
+                    quantizer_info = {}
+                quantizer_info.update({
+                    "hungarian_indices": indices_normal,
+                    "seg_logits_quant": seg_logits_quant,
+                    "class_logits_quant": class_logits_quant
+                })
             else:
                 dice_loss = dice_loss_normal
                 bce_loss = bce_loss_normal
                 cls_loss = cls_loss_normal
+                # print(f"use normal losses: {dice_loss_normal}, {bce_loss_normal}, {cls_loss_normal}")
 
             # --- Semantic Embedding Loss (after assignment, matched pairs only) ---
-            semantic_loss = None
-            
+            # semantic_loss already set above when semantic_labels provided
 
         # Aggregate quantization losses with coefficients
+        
         total_vq_loss = sum(quantization_losses["vq_loss"]) if quantization_losses["vq_loss"] else None
         total_commit_loss = sum(quantization_losses["commit_loss"]) if quantization_losses["commit_loss"] else None
         total_entropy_loss = sum(quantization_losses["entropy_loss"]) if quantization_losses["entropy_loss"] else None
+        total_recon_loss = sum(quantization_losses["recon_loss"]) if quantization_losses["recon_loss"] else None
         total_quantization_loss = None
         if total_vq_loss is not None and total_commit_loss is not None and total_entropy_loss is not None:
             total_quantization_loss = (
@@ -1106,6 +978,10 @@ class RegionPerceiver(nn.Module):
                 commit_coef * total_commit_loss +
                 entropy_coef * total_entropy_loss
             )
+            # include reconstruction loss if present
+            if total_recon_loss is not None:
+                total_quantization_loss = total_quantization_loss + (recon_coef * total_recon_loss)
+             # print(f"entropy loss and other: {entropy_coef * total_entropy_loss}, {vq_coef * total_vq_loss}, {commit_coef * total_commit_loss}")
 
         # Return hierarchical codes, masks, losses for each stage, and quantization losses
         return (
@@ -1115,7 +991,7 @@ class RegionPerceiver(nn.Module):
             hierarchical_codes, hierarchical_masks, hierarchical_gt_masks, hierarchical_losses,
             quantization_losses, total_quantization_loss,
             dice_loss_normal, dice_loss_quant, cls_loss_normal, cls_loss_quant,
-            distill_loss, quantizer_info,
+            total_recon_loss, quantizer_info,
             semantic_loss
         )
 

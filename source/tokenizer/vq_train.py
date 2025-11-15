@@ -116,9 +116,12 @@ def main(args):
         kmeans=args.kmeans,
         num_classes=data_num_classes,
         use_quantization=args.use_quantization,
+        entropy_loss_ratio=args.entropy_loss_ratio,
         finetune_codebook_only=args.finetune_codebook_only,
         upsample_mode=args.up_sample_mode,
         use_self_attn=args.use_self_attn,
+        num_modalities=args.num_modalities,
+        quant_use_seg=args.quant_use_seg,
         # enhanced_decoder=args.enhanced_decoder,
     )
     logger.info(f"VQ Model Parameters: {sum(p.numel() for p in vq_model.parameters()):,}")
@@ -135,6 +138,7 @@ def main(args):
 
     dataset.clip_preprocess = vq_model.unimed_preprocess
     dataset.text_encoder = vq_model.text_encoder
+    # print(dataset.text_encoder, "text encoder")
     if args.use_semantic:
         dataset.text_tokenizer = vq_model.text_tokenizer
     dataset.device = vq_model.device
@@ -198,13 +202,18 @@ def main(args):
         for name, param in vq_model.named_parameters():
             # if "quantiz" in name or "code_decoder" in name or "segmentation_cls_head" in name:
             # if "quantiz" in name or "code_decoder" in name or "to_code" in name or "segmentation_cls_head" in name or "region_perceiver" in name:
-            if "quantiz" in name or "code_decoder" in name or "to_code" in name:
+            if "quantiz" in name or "code_decoder" in name or "to_code" in name or "modality_predictor" in name:
                 param.requires_grad_(True)
             else:
                 param.requires_grad_(False)
+
+            if args.kmeans:
+                if "embedding" in name:
+                    param.requires_grad_(False)
     for name, param in vq_model.named_parameters():
         if param.requires_grad:
             print(name, param.requires_grad)
+    
 
     # No discriminator for segmentation, so skip related optimizer/scaler
     optimizer = torch.optim.Adam(
@@ -229,7 +238,7 @@ def main(args):
             try:
                 # if you want to continue finetune the enhanced decoder
                 missing, unexpected = vq_model.load_state_dict(model_state, strict=False)
-                logger.info(f"Loading Region Perceiver, Missing keys: {[i for i in missing if ('image_encoder' not in i) and ("code_decoder") not in i]}")
+                logger.info(f"Loading Region Perceiver, Missing keys: {[i for i in missing if ('image_encoder' not in i) and ('text_encoder' not in i) and ('code_decoder' not in i)]}")
                 logger.info(f"Unexpected keys: {unexpected}")
                 logger.info("Load region perceiver from CKPT.")
             except:
@@ -276,6 +285,36 @@ def main(args):
         if args.ema:
             update_ema(ema, vq_model, decay=0)  # Ensure EMA is initialized with synced weights
     
+    # --- Try loading a separate quantization-specific checkpoint if provided ---
+    if args.quantization_ckpt:
+        try:
+            qckpt = torch.load(args.quantization_ckpt, map_location="cpu", weights_only=False)
+            q_model_state = qckpt.get("model", None)
+            q_opt_state = qckpt.get("optimizer", None)
+            if q_model_state is not None:
+                try:
+                    # load with strict=False so partial / quantizer-only checkpoints are accepted
+                    missing, unexpected = vq_model.load_state_dict(q_model_state, strict=False)
+                    logger.info(f"Loaded quantization checkpoint into model ({args.quantization_ckpt});unexpected: {unexpected}")
+                    logger.info(f"Loading Region Perceiver, Missing keys: {[i for i in missing if ('image_encoder' not in i) and ('text_encoder' not in i)]}")
+                except Exception as e:
+                    logger.warning(f"Failed to load quantization model state from {args.quantization_ckpt}: {e}")
+            if q_opt_state is not None:
+                try:
+                    optimizer.load_state_dict(q_opt_state)
+                    logger.info(f"Loaded optimizer state from quantization checkpoint {args.quantization_ckpt}")
+                except Exception as e:
+                    logger.warning(f"Failed to load optimizer state from {args.quantization_ckpt}: {e}")
+            # also restore ema if available
+            if args.ema and "ema" in qckpt:
+                try:
+                    ema.load_state_dict(qckpt["ema"])
+                    logger.info("Loaded EMA state from quantization checkpoint")
+                except Exception as e:
+                    logger.warning(f"Failed to load EMA from quantization checkpoint: {e}")
+        except Exception as e:
+            logger.warning(f"Unable to read quantization checkpoint {args.quantization_ckpt}: {e}")
+    
     # Print all parameters and trainable parameters
     total_params = sum(p.numel() for p in vq_model.parameters())
     trainable_params = sum(p.numel() for p in vq_model.parameters() if p.requires_grad)
@@ -320,18 +359,23 @@ def main(args):
         if rank == 0:
             epoch_iter = tqdm(train_loader, desc=f"Epoch {epoch}", dynamic_ncols=True)
         for batch in epoch_iter:
-            imgs, masks, class_labels, text_embeddings = batch
+            imgs, masks, class_labels, text_embeddings, modality_labels = batch
             imgs = imgs.to(device, non_blocking=True)
             mask_labels = [m.to(device, non_blocking=True) for m in masks]
-            text_embeddings = [t.to(device, non_blocking=True) for t in text_embeddings] if text_embeddings[0] else None
-            # print("text embeddings", text_embeddings)
+            text_embeddings = [t.to(device, non_blocking=True) for t in text_embeddings] if text_embeddings[0] is not None else None
+            modality_labels = torch.tensor(modality_labels) if modality_labels is not None else None
+            if modality_labels is not None:
+                modality_labels = modality_labels.to(device, non_blocking=True)
             optimizer.zero_grad()
             # with torch.cuda.amp.autocast(dtype=ptdtype):
             dec_mask, diff_quan, dice_loss, bce_loss, cls_loss, seg_logits, class_logits, \
             hierarchical_codes, hierarchical_masks, hierarchical_gt_masks, hierarchical_losses, \
             quantization_losses, total_quantization_loss, dice_loss_normal, dice_loss_quant, \
-            cls_loss_normal, cls_loss_quant, distill_loss, quantizer_info, semantic_loss = vq_model(imgs, do_quantize=args.use_quantization, mask_labels=mask_labels, class_labels=class_labels, semantic_labels=text_embeddings, loss_type="dice_bce")
-            loss_sum = dice_loss + bce_loss + cls_loss
+            cls_loss_normal, cls_loss_quant, distill_loss, quantizer_info, semantic_loss = vq_model(imgs, do_quantize=args.use_quantization, mask_labels=mask_labels, class_labels=class_labels, semantic_labels=text_embeddings, modality_label=modality_labels, loss_type="dice_bce")
+            
+            loss_sum = dice_loss + bce_loss
+            if cls_loss is not None:
+                loss_sum += cls_loss
             if semantic_loss is not None:
                 loss_sum += semantic_loss
             seg_loss = dice_loss + bce_loss
@@ -341,6 +385,7 @@ def main(args):
                 loss_sum += total_quantization_loss
                 # print(total_quantization_loss, "quantization loss")
                 if distill_loss is not None:
+                    # print(f"use reconstruction loss, {distill_loss.item()}")
                     loss_sum += distill_loss
             loss_gen, loss_dict_gen = vq_loss(loss_sum)
             
@@ -357,7 +402,8 @@ def main(args):
             running_seg_loss += seg_loss.item()
             running_dice_loss += dice_loss.item()
             running_bce_loss += bce_loss.item()
-            running_cls_loss += cls_loss.item()
+            if cls_loss is not None:
+                running_cls_loss += cls_loss.item()
             if args.use_quantization:
                 running_quantization_loss += total_quantization_loss.item()
             running_distill_loss += distill_loss.item() if distill_loss is not None else 0
@@ -480,10 +526,13 @@ def main(args):
             if rank == 0:
                 val_iter = tqdm(val_loader, desc=f"Val Epoch {epoch}", dynamic_ncols=True)
             for batch in val_iter:
-                imgs, masks, class_labels, text_embeddings = batch
+                imgs, masks, class_labels, text_embeddings, modality_labels  = batch
                 imgs = imgs.to(device, non_blocking=True)
                 mask_labels = [m.to(device, non_blocking=True) for m in masks]
-                text_embeddings = [t.to(device, non_blocking=True) for t in text_embeddings] if text_embeddings[0] else None
+                text_embeddings = [t.to(device, non_blocking=True) for t in text_embeddings] if text_embeddings[0] is not None else None
+                modality_labels = torch.tensor(modality_labels) if modality_labels is not None else None
+                if modality_labels is not None:
+                    modality_labels = modality_labels.to(device, non_blocking=True)
                 # Unpack dice and bce loss separately
                 dec_mask, diff_quan, dice_loss, bce_loss, cls_loss, seg_logits, class_logits, \
                 hierarchical_codes, hierarchical_masks, hierarchical_gt_masks, hierarchical_losses, \
@@ -505,7 +554,8 @@ def main(args):
                 val_seg_loss += seg_loss.item()
                 running_val_dice_loss += dice_loss.item()
                 running_val_bce_loss += bce_loss.item()
-                val_cls_loss += cls_loss.item()
+                if cls_loss is not None:
+                    val_cls_loss += cls_loss.item()
                 if args.use_quantization:
                     val_quantization_loss += total_quantization_loss.item()
                 running_val_distill_loss += distill_loss.item() if distill_loss is not None else 0
@@ -606,8 +656,10 @@ def seg_collate_fn(batch):
     masks = [item[1].squeeze(1) for item in batch]
     class_labels = [item[2] for item in batch]
     text_embeddings = [item[3] for item in batch]
+    if len(batch[0]) == 5:
+        modality_labels = [item[4] for item in batch]
 
-    return images, masks, class_labels, text_embeddings
+    return images, masks, class_labels, text_embeddings, modality_labels
 
 
 if __name__ == "__main__":
@@ -625,6 +677,7 @@ if __name__ == "__main__":
     parser.add_argument("--use-self-attn", action='store_true', help="whether using self attention in region perceiver")
 
     parser.add_argument("--vq-ckpt", type=str, default=None, help="ckpt path for resume training")
+    parser.add_argument("--quantization-ckpt", type=str, default=None, help="path to a checkpoint that contains trained quantizer / optimizer state (optional)")
     parser.add_argument("--finetune", action='store_true', help="finetune a pre-trained vq model")
     parser.add_argument("--ema", action='store_true', help="whether using ema training")
 
@@ -638,11 +691,13 @@ if __name__ == "__main__":
     # parser.add_argument("--semantic-code-dim", type=int, default=32, help="codebook dimension for semantic vector quantization")
     parser.add_argument("--codebook-l2-norm", action='store_true', default=True, help="l2 norm codebook")
     parser.add_argument("--use-semantic", action='store_true', help="use semantic labels")
+    parser.add_argument("--num-modalities", type=int, default=0, help="the number of modalities for using modality-specific codebook")
     parser.add_argument("--codebook-weight", type=float, default=1.0, help="codebook loss weight for vector quantization")
 
-    parser.add_argument("--entropy-loss-ratio", type=float, default=1.0, help="BCE loss ratio in segmentation loss")
+    parser.add_argument("--entropy-loss-ratio", type=float, default=0.1, help="BCE loss ratio in segmentation loss")
     parser.add_argument("--dice-loss-ratio", type=float, default=1.0, help="DICE loss ratio in segmentation loss")
     parser.add_argument("--quantization-loss-ratio", type=float, default=0.1, help="Quantization loss ratio in segmentation loss")
+    parser.add_argument("--quant-use-seg", action='store_true', help="whether using segmentation loss to train quantization")
 
     parser.add_argument("--compile", action='store_true', default=False)
     parser.add_argument("--dropout-p", type=float, default=0.0, help="dropout_p")

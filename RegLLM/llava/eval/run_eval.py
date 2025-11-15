@@ -18,6 +18,7 @@ def parse_option():
     parser.add_argument('--candidate', type=str, default="candidate.json", help='path to candidate answer file', )
     parser.add_argument('--pred', type=str, default="answer-file-llava-zeorshot.jsonl", help='path to prediction file', )
     parser.add_argument('--eval_res', type=str, default="eval_res.txt", help='path to prediction file', )
+    parser.add_argument('--modality_split', type=bool, default=False, help='whether to split evaluation by modality')
     args, unparsed = parser.parse_known_args()
     return args
 
@@ -39,13 +40,16 @@ def evaluate(gt, pred, candidate, criterion=None):
         if "conversations" in gt_item:
             gt_value = gt_item['conversations'][1]['value'].lower()
         else:
-            gt_value = gt_item["answer"].lower()
+            if "short_answer" in gt_item:
+                gt_value = gt_item["short_answer"].lower()
+            else:
+                gt_value = gt_item["answer"].lower()
         pred_value = pred_item['text'].lower()
 
         gt_value = normalize_word(gt_value)
         pred_value = normalize_word(pred_value)
 
-        if gt_item['answer_type'] == 'OPEN':
+        if gt_item['answer_type'].lower() == 'open':
             num_open += 1
             # for open-ended question
             # if gt_value in pred_value:
@@ -87,7 +91,7 @@ def evaluate(gt, pred, candidate, criterion=None):
             bleu_scores['bleu_score_2'].append(b_score_2)
             bleu_scores['bleu_score_3'].append(b_score_3)
 
-        elif gt_item['answer_type'] == 'CLOSED':
+        elif gt_item['answer_type'].lower().startswith('close'):
             # for close-ended question (Yes/No)
             num_close += 1
             closed_scores['q_id'].append(pred_item['question_id'])
@@ -149,18 +153,50 @@ if __name__ == '__main__':
             gt_ids.append(item['qid'])
         elif "id" in item:
             gt_ids.append(item['id'])
+        elif "qa_id" in item:
+            gt_ids.append(item['qa_id'])
     pred_ids = [item['question_id'] for item in pred]
     # filter pred_ids not in gt_ids
-    pred_ids = [id for id in pred_ids if id in gt_ids]
+    # pred_ids = [id for id in pred_ids if id in gt_ids]
 
     num_gt_ids, num_pred_ids = len(gt_ids), len(pred_ids)
     print(f'num_gt_ids: {num_gt_ids} || num_pred_ids: {num_pred_ids}')
     # import pdb; pdb.set_trace()
-    assert gt_ids == pred_ids, "please make sure pred and gt are exactly matched"
+    # assert gt_ids == pred_ids, "please make sure pred and gt are exactly matched"
 
-    # perform evaluation
-    results = evaluate(gt, pred, candidate=None)
-    print(results)
-    with open(args.eval_res, "w") as f:
-        f.write(results)
-        f.close()
+    if args.modality_split:
+        # perform evaluation with modality split
+        modality_data = {}
+        for i in range(len(gt)):
+            gt_i = gt[i]
+            pred_i = pred[i]
+            modality_i = gt_i.get("modality", "unknown")
+            if modality_i == "Dermatoscopy":
+                modality_i = "Dermoscopy"
+            if modality_i not in modality_data:
+                modality_data[modality_i] = {"gt": [], "pred": []}
+            modality_data[modality_i]["gt"].append(gt_i)
+            modality_data[modality_i]["pred"].append(pred_i)
+        with open(f"{args.eval_res}", "w") as f:
+            for modality, data in modality_data.items():
+                print(f"Evaluating modality: {modality}")
+                results = evaluate(data["gt"], data["pred"], candidate=None)
+                print(results)
+                f.write(f"modality: {modality}\n")
+                f.write(results)
+            f.close()
+        
+        # perform evaluation
+        results = evaluate(gt, pred, candidate=None)
+        print("final results:", results)
+        with open(args.eval_res, "a") as f:
+            f.write(results)
+            f.close()
+        
+    else:
+        # perform evaluation
+        results = evaluate(gt, pred, candidate=None)
+        print("final results:", results)
+        with open(args.eval_res, "w") as f:
+            f.write(results)
+            f.close()

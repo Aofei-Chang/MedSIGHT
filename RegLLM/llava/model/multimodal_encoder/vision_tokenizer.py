@@ -190,11 +190,13 @@ class VQTower(nn.Module):
     def forward(self, images):
         if type(images) is list:
             image_features = []
+            multi_scale_image_features = []
             for image in images:
                 with torch.no_grad():
                     image_feature, region_queries, info = self.vision_tower(image.to(device=self.device, dtype=self.dtype, llm_training=True).unsqueeze(0))
                 inds = info[-1]
-
+                multi_scale_feature = info.get('multi_scale_image_features', None)
+                multi_scale_image_features.append(multi_scale_feature)
                 image_feature_flat = rearrange(image_feature, 'b c h w -> b (h w) c').to(image.dtype)
                 image_features.append(image_feature_flat)
 
@@ -203,6 +205,7 @@ class VQTower(nn.Module):
                 # print(images.shape, "image shape")
                 image_features, region_queries, info = self.vision_tower(images.to(device=self.device, dtype=self.dtype), llm_training=True)
             # print(image_features.shape, "image shape 00",)
+            multi_scale_image_features = [info.get('multi_scale_image_features', None)]
             if len(image_features.shape) == 4:
                 image_features = rearrange(image_features, 'b h w c -> b (h w) c').to(images.dtype)
             # print(image_features.shape, "image shape", region_queries.shape, "region queries")
@@ -214,7 +217,7 @@ class VQTower(nn.Module):
                     region_queries = region_queries.unsqueeze(0)
                 image_features = torch.cat([image_features, region_queries], dim=1)
                 # print(image_features.size(), "after concat")
-        return image_features
+        return image_features, multi_scale_image_features
 
     @property
     def dummy_feature(self):

@@ -78,10 +78,17 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
         return_dict: Optional[bool] = None,
         dpo_forward: Optional[bool] = False,
         cache_position=None,
+        return_multi_scale_features = False
     ) -> Union[Tuple, CausalLMOutputWithPast]:
 
         if inputs_embeds is None:
-            (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, past_key_values, labels, images, image_sizes)
+            # (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels, multi_scale_image_features) = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, past_key_values, labels, images, image_sizes)
+            prepared_inputs = self.prepare_inputs_labels_for_multimodal(input_ids, position_ids, attention_mask, past_key_values, labels, images, image_sizes)
+            if len(prepared_inputs) == 7:
+                (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels, multi_scale_image_features) = prepared_inputs
+            else:
+                (input_ids, position_ids, attention_mask, past_key_values, inputs_embeds, labels) = prepared_inputs
+
         # print(input_ids, inputs_embeds.size(), "inputs")
         if dpo_forward:
             outputs = self.model(
@@ -102,7 +109,7 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
             return logits, labels
 
         else:
-            return super().forward(
+            outputs = super().forward(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
@@ -114,6 +121,9 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
+            if return_multi_scale_features:
+                return outputs, multi_scale_image_features
+            return outputs
 
     @torch.no_grad()
     def generate(
@@ -129,7 +139,12 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
             raise NotImplementedError("`inputs_embeds` is not supported")
 
         if images is not None:
-            (inputs, position_ids, attention_mask, _, inputs_embeds, _) = self.prepare_inputs_labels_for_multimodal(inputs, position_ids, attention_mask, None, None, images, image_sizes=image_sizes)
+            # (inputs, position_ids, attention_mask, _, inputs_embeds, _, multi_scale_image_features) = self.prepare_inputs_labels_for_multimodal(inputs, position_ids, attention_mask, None, None, images, image_sizes=image_sizes)
+            prepared_inputs = self.prepare_inputs_labels_for_multimodal(inputs, position_ids, attention_mask, None, None, images, image_sizes=image_sizes)
+            if len(prepared_inputs) == 7:
+                (inputs, position_ids, attention_mask, past_key_values, inputs_embeds, labels, multi_scale_image_features) = prepared_inputs
+            else:
+                (inputs, position_ids, attention_mask, past_key_values, inputs_embeds, labels) = prepared_inputs
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
 
