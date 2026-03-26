@@ -10,7 +10,7 @@ command:
 - export REQUESTS_CA_BUNDLE=/usr/local/share/ca-certificates/gehealthcarerootca1.crt
 - source /qumulo/shared_data/aofei_summer/miniconda3/bin/activate base
 - cd /qumulo/shared_data/aofei_summer/RegTok/RegLLM
-- bash ./scripts/rebuttal/align_regtok_0326.sh
+- bash ./scripts/rebuttal/alignment_region.sh
 
 
 output_log_path: /qumulo/shared_data/aofei_summer/intern_records/LVLM/logs/align_region_0326
