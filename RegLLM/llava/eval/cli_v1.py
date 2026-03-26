@@ -148,7 +148,7 @@ class RegLLMChatbot():
         else:
             print("use RegSegForCausalLM!")
             import json
-            token_ids_path = "/qumulo/shared_data/aofei_summer/intern_records/LVLM/checkpoints/reg_seg_instruct_mix_c_45k/added_tokens.json"
+            token_ids_path = "/data/aofei/output/MedSight/1110_full_instruct_71k_nosep/added_tokens.json"
             # token_ids_path = os.path.join(model_args.pretrained_llm_path, "added_tokens.json")
             codebook_token_ids = [i[1] for i in list(json.load(open(token_ids_path)).items()) if i[0].startswith("[")]
             print(len(codebook_token_ids), "codebook_token_ids")
@@ -325,22 +325,39 @@ class RegLLMChatbot():
                 print(f"Merging weights")
                 model = model.merge_and_unload()
 
-            non_lora_trainables_path = os.path.join(peft_path, "non_lora_trainables.bin")
-            non_lora_trainables = torch.load(non_lora_trainables_path, map_location='cuda')
-            print(f"Loading non-LoRA weights from {non_lora_trainables_path}")
-            print(non_lora_trainables.keys())
-            new_state_dict = {}
-            for key, value in non_lora_trainables.items():
-                # Replace "base_model.model" with an empty string to remove it
-                new_key = key
-                if not model_args.use_moe:
-                    new_key = key.replace("base_model.model", "")
-                    if new_key.startswith("."):
-                        new_key = new_key[1:]
-                new_state_dict[new_key] = value.to("cuda")
-            print("New state dict keys:", new_state_dict.keys())
-            missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
-            print("Unexpected keys:", unexpected)
+            if os.path.exists(os.path.join(peft_path, "non_lora_trainables.bin")):
+                non_lora_trainables_path = os.path.join(peft_path, "non_lora_trainables.bin")
+                non_lora_trainables = torch.load(non_lora_trainables_path, map_location='cuda')
+                print(f"Loading non-LoRA weights from {non_lora_trainables_path}")
+                print(non_lora_trainables.keys())
+                new_state_dict = {}
+                for key, value in non_lora_trainables.items():
+                    new_key = key
+                    if not model_args.use_moe:
+                        new_key = key.replace("base_model.model", "")
+                        if new_key.startswith("."):
+                            new_key = new_key[1:]
+                    new_state_dict[new_key] = value.to("cuda")
+                    print("New state dict keys:", new_state_dict.keys())
+                    missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
+                    print("Unexpected keys:", unexpected)
+
+            # non_lora_trainables_path = os.path.join(peft_path, "non_lora_trainables.bin")
+            # non_lora_trainables = torch.load(non_lora_trainables_path, map_location='cuda')
+            # print(f"Loading non-LoRA weights from {non_lora_trainables_path}")
+            # print(non_lora_trainables.keys())
+            # new_state_dict = {}
+            # for key, value in non_lora_trainables.items():
+            #     # Replace "base_model.model" with an empty string to remove it
+            #     new_key = key
+            #     if not model_args.use_moe:
+            #         new_key = key.replace("base_model.model", "")
+            #         if new_key.startswith("."):
+            #             new_key = new_key[1:]
+            #     new_state_dict[new_key] = value.to("cuda")
+            # print("New state dict keys:", new_state_dict.keys())
+            # missing, unexpected = model.load_state_dict(new_state_dict, strict=False)
+            # print("Unexpected keys:", unexpected)
 
         vision_tower.to(dtype=torch.bfloat16, device=model.device)
         image_processor = vision_tower.image_processor

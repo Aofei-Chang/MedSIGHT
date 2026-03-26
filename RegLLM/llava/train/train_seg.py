@@ -42,6 +42,7 @@ from llava.mm_utils import tokenizer_image_token, VQType
 
 # Final model with segmentation
 from RegLLM.RegSeg import RegSegForCausalLM
+from RegLLM.RegSeg_qwen2 import RegSegForCausalLM as RegSegForCausalLM_qwen2
 
 from PIL import Image
 
@@ -186,7 +187,8 @@ def get_peft_state_maybe_zero_3(named_params, bias):
                 to_return[bias_name] = t
     else:
         raise NotImplementedError
-    to_return = {k: maybe_zero_3(v, ignore_status=True) for k, v in to_return.items()}
+    # to_return = {k: maybe_zero_3(v, ignore_status=True) for k, v in to_return.items()}
+    to_return = {k: v for k, v in to_return.items()}
     return to_return
 
 class SplitEmbedding(nn.Module):
@@ -1461,14 +1463,23 @@ def train(attn_implementation=None):
                 deepspeed.utils.set_z3_leaf_modules(model, [Qwen2MoeSparseMoeBlock])
             else:
                 if not model_args.output_segmentation:
-                    model = LlavaQwenForCausalLM.from_pretrained(
-                        model_args.model_name_or_path,
-                        cache_dir=training_args.cache_dir,
-                        # attn_implementation=attn_implementation,
-                        torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                        low_cpu_mem_usage=False,
-                        **bnb_model_from_pretrained_args,
-                    )
+                    if "qwen2" in model_args.model_name_or_path.lower() or "llava_qwen2" in model_args.model_name_or_path.lower():
+                        model = LlavaQwen2ForCausalLM.from_pretrained(
+                            model_args.model_name_or_path,
+                            cache_dir=training_args.cache_dir,
+                            torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                            low_cpu_mem_usage=False,
+                            **bnb_model_from_pretrained_args,
+                        )
+                    else:
+                        model = LlavaQwenForCausalLM.from_pretrained(
+                            model_args.model_name_or_path,
+                            cache_dir=training_args.cache_dir,
+                            # attn_implementation=attn_implementation,
+                            torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                            low_cpu_mem_usage=False,
+                            **bnb_model_from_pretrained_args,
+                        )
                 else:
                     print("use RegSegForCausalLM!")
                     regseg_args = {
@@ -1488,16 +1499,24 @@ def train(attn_implementation=None):
                     model_path = model_args.model_name_or_path
                     if model_args.pretrained_llm_path is not None and len(model_args.pretrained_llm_path) > 2:
                         model_path = model_args.pretrained_llm_path
-
-                    model = RegSegForCausalLM.from_pretrained(
-                        # model_args.model_name_or_path,
-                        model_path,
-                        cache_dir=training_args.cache_dir,
-                        torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
-                        low_cpu_mem_usage=False,
-                        **regseg_args,
-                        **bnb_model_from_pretrained_args
-                    )
+                    if "qwen2" in model_args.model_name_or_path.lower() or "llava_qwen2" in model_args.model_name_or_path.lower():
+                        model = RegSegForCausalLM_qwen2.from_pretrained(
+                            model_path,
+                            cache_dir=training_args.cache_dir,
+                            torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                            low_cpu_mem_usage=False,
+                            **regseg_args,
+                            **bnb_model_from_pretrained_args
+                        )
+                    else:
+                        model = RegSegForCausalLM.from_pretrained(
+                            model_path,
+                            cache_dir=training_args.cache_dir,
+                            torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
+                            low_cpu_mem_usage=False,
+                            **regseg_args,
+                            **bnb_model_from_pretrained_args
+                        )
                     # Inspect or modify before merging
                     # print("Codebook before merge:", model.get_input_embeddings().codebook_emb.weight[-1])
 

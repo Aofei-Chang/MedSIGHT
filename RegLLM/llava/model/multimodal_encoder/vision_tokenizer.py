@@ -133,7 +133,7 @@ class VQTower(nn.Module):
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
         self.vq_type = getattr(args, 'mm_vision_vq_type', VQType.OPEN_CLIP)
         # self.reg_tok_config_path = getattr(args, 'regtok_config_path', None)
-        self.reg_tok_config_path = "/qumulo/shared_data/aofei_summer/RegTok/source/tokenizer/regtok_config.yaml"
+        self.reg_tok_config_path = "/home/avc6555/research/MedSight/RegTok/source/tokenizer/regtok_config.yaml"
         self.reg_tok_config = None
         if self.reg_tok_config_path and self.reg_tok_config_path.endswith(".yaml"):
             # load the config in .yaml file

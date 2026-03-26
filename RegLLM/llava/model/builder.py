@@ -115,7 +115,17 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                 )
             elif "qwen" in model_name.lower() or "quyen" in model_name.lower():
                 tokenizer = AutoTokenizer.from_pretrained(model_path)
-                if "moe" in model_name.lower() or "A14B" in model_name.lower():
+                if "qwen2" in model_name.lower() or "llava_qwen2" in model_name.lower():
+                    from llava.model.language_model.llava_qwen2 import LlavaQwen2Config
+                    if overwrite_config is not None:
+                        llava_cfg = LlavaQwen2Config.from_pretrained(model_path)
+                        print(f"Overwriting config with {overwrite_config}")
+                        for k, v in overwrite_config.items():
+                            setattr(llava_cfg, k, v)
+                        model = LlavaQwen2ForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, config=llava_cfg, **kwargs)
+                    else:
+                        model = LlavaQwen2ForCausalLM.from_pretrained(model_path, low_cpu_mem_usage=True, **kwargs)
+                elif "moe" in model_name.lower() or "A14B" in model_name.lower():
                     from llava.model.language_model.llava_qwen3_moe import LlavaQwenMoeConfig
                     if overwrite_config is not None:
                         llava_cfg = LlavaQwenMoeConfig.from_pretrained(model_path)

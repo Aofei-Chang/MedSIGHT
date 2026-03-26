@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from transformers.modeling_outputs import ModelOutput
 
-from llava.model.language_model.llava_qwen3 import LlavaQwenForCausalLM, LlavaQwenModel
+from llava.model.language_model.llava_qwen2 import LlavaQwen2ForCausalLM, LlavaQwen2Model
 from source.tokenizer.region_perceiver import LightweightRegionDecoder
 
 from torch.utils.checkpoint import checkpoint
@@ -113,7 +113,7 @@ class RegSegMetaModel:
         return self.seg_token_ids_tensor
 
 
-class RegSegModel(RegSegMetaModel, LlavaQwenModel):
+class RegSegModel(RegSegMetaModel, LlavaQwen2Model):
     def __init__(self, config, **kwargs):
         super(RegSegModel, self).__init__(config, **kwargs)
         self.config.use_cache = False
@@ -297,7 +297,7 @@ class SplitEmbedding(nn.Module):
         
         return self.base_emb
 
-class RegSegForCausalLM(LlavaQwenForCausalLM):
+class RegSegForCausalLM(LlavaQwen2ForCausalLM):
     def __init__(self, config, **kwargs):
         seg_token_ids = kwargs.pop("seg_token_ids", None)
         self.use_seg_loss = kwargs.get("use_seg_loss", False)

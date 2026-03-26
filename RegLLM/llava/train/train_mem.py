@@ -1,7 +1,7 @@
 import os
 import sys
 
-current_working_dir = "/qumulo/shared_data/aofei_summer/RegTok/RegLLM"
+current_working_dir = "/home/avc6555/research/MedSight/RegTok/RegLLM"
 sys.path.append(os.path.join(current_working_dir, ""))
 
 from llava.train.train_seg import train

@@ -1,0 +1,85 @@
+  0%|                                                                                                                | 0/159023 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_mem.py", line 11, in <module>
+    train()
+  File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_seg.py", line 1824, in train
+    trainer.train()
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 2240, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 2509, in _inner_training_loop
+    batch_samples, num_items_in_batch = self.get_batch_samples(epoch_iterator, num_batches, args.device)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 5263, in get_batch_samples
+    batch_samples.append(next(epoch_iterator))
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/accelerate/data_loader.py", line 567, in __iter__
+    current_batch = next(dataloader_iter)
+                    ^^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 732, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1506, in _next_data
+    return self._process_data(data, worker_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1541, in _process_data
+    data.reraise()
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/_utils.py", line 769, in reraise
+    raise exception
+KeyError: Caught KeyError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_seg.py", line 1074, in __getitem__
+    for conv in sources[0]['conversations']:
+                ~~~~~~~~~~^^^^^^^^^^^^^^^^^
+KeyError: 'conversations'
+
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_mem.py", line 11, in <module>
+[rank0]:     train()
+[rank0]:   File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_seg.py", line 1824, in train
+[rank0]:     trainer.train()
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 2240, in train
+[rank0]:     return inner_training_loop(
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 2509, in _inner_training_loop
+[rank0]:     batch_samples, num_items_in_batch = self.get_batch_samples(epoch_iterator, num_batches, args.device)
+[rank0]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/transformers/trainer.py", line 5263, in get_batch_samples
+[rank0]:     batch_samples.append(next(epoch_iterator))
+[rank0]:                          ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/accelerate/data_loader.py", line 567, in __iter__
+[rank0]:     current_batch = next(dataloader_iter)
+[rank0]:                     ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 732, in __next__
+[rank0]:     data = self._next_data()
+[rank0]:            ^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1506, in _next_data
+[rank0]:     return self._process_data(data, worker_id)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1541, in _process_data
+[rank0]:     data.reraise()
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/_utils.py", line 769, in reraise
+[rank0]:     raise exception
+[rank0]: KeyError: Caught KeyError in DataLoader worker process 0.
+[rank0]: Original Traceback (most recent call last):
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
+[rank0]:     data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+[rank0]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/data/aofei/conda/env/med_edit/lib/python3.11/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+[rank0]:     data = [self.dataset[idx] for idx in possibly_batched_index]
+[rank0]:             ~~~~~~~~~~~~^^^^^
+[rank0]:   File "/home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_seg.py", line 1074, in __getitem__
+[rank0]:     for conv in sources[0]['conversations']:
+[rank0]:                 ~~~~~~~~~~^^^^^^^^^^^^^^^^^
+[rank0]: KeyError: 'conversations'

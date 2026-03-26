@@ -27,34 +27,33 @@ from transformers.generation.utils import GenerateOutput
 # from ...constants import IGNORE_INDEX, IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from llava.model.llava_arch import LlavaMetaModel, LlavaMetaForCausalLM
 # from transformers import Qwen2Config, Qwen2Model, Qwen2ForCausalLM
-from transformers.models.qwen3 import Qwen3Config, Qwen3ForCausalLM, Qwen3Model
-from transformers.models.qwen3_moe import Qwen3MoeConfig, Qwen3MoeForCausalLM, Qwen3MoeModel
+from transformers.models.qwen2 import Qwen2Config, Qwen2ForCausalLM, Qwen2Model
 
 # from .qwen.modeling_qwen import QWenLMHeadModel, QWenModel
 # from .qwen.configuration_qwen import QWenConfig
 
 
-class LlavaQwenConfig(Qwen3Config):
-    model_type = "llava_qwen"
+class LlavaQwen2Config(Qwen2Config):
+    model_type = "llava_qwen2"
 
 
-class LlavaQwenModel(LlavaMetaModel, Qwen3Model):
-    config_class = LlavaQwenConfig
+class LlavaQwen2Model(LlavaMetaModel, Qwen2Model):
+    config_class = LlavaQwen2Config
 
-    def __init__(self, config: Qwen3Config):
-        super(LlavaQwenModel, self).__init__(config)
+    def __init__(self, config: Qwen2Config):
+        super(LlavaQwen2Model, self).__init__(config)
 
 
-class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
-    config_class = LlavaQwenConfig
+class LlavaQwen2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
+    config_class = LlavaQwen2Config
 
     def __init__(self, config):
         # super(Qwen3ForCausalLM, self).__init__(config)
-        Qwen3ForCausalLM.__init__(self, config)
-        config.model_type = "llava_qwen"
+        Qwen2ForCausalLM.__init__(self, config)
+        config.model_type = "llava_qwen2"
         config.rope_scaling = None
 
-        self.model = LlavaQwenModel(config)
+        self.model = LlavaQwen2Model(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         # Initialize weights and apply final processing
         self.post_init()
@@ -148,12 +147,6 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
 
-        # Transformers' generation internals differ depending on whether
-        # `attention_mask` is *present* in the kwarg dict.
-        # Passing `attention_mask=None` (or a synthetic value) can break depending
-        # on the transformers version / validation logic.
-        if attention_mask is None:
-            return super().generate(position_ids=position_ids, inputs_embeds=inputs_embeds, **kwargs)
         return super().generate(position_ids=position_ids, attention_mask=attention_mask, inputs_embeds=inputs_embeds, **kwargs)
 
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
@@ -167,5 +160,5 @@ class LlavaQwenForCausalLM(Qwen3ForCausalLM, LlavaMetaForCausalLM):
         return inputs
 
 
-AutoConfig.register("llava_qwen", LlavaQwenConfig)
-AutoModelForCausalLM.register(LlavaQwenConfig, LlavaQwenForCausalLM)
+AutoConfig.register("llava_qwen2", LlavaQwen2Config)
+AutoModelForCausalLM.register(LlavaQwen2Config, LlavaQwen2ForCausalLM)

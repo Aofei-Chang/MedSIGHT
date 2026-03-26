@@ -82,7 +82,7 @@ class ModelArgs:
     finetune_codebook_only: bool = False
     use_self_attn: bool = False
     upsample_mode: str = "conv"
-    pretrained_weights: str = "/qumulo/shared_data/aofei_summer/CLIPs/unimed_clip_vit_l14.pt"
+    pretrained_weights: str = "/data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt"
     # number of modalities (if >0 will enable modality predictor + modality-specific codebooks)
     num_modalities: int = 0
     quant_use_seg: bool = False
@@ -110,7 +110,8 @@ class RegTok(nn.Module):
         self.compression = 2**(len(config.encoder_ch_mult) - 1)
         ### load medical image encoder ###
         model_name = 'ViT-L-14-336-quickgelu' # available pretrained weights ['ViT-L-14-336-quickgelu', 'ViT-B-16-quickgelu']
-        pretrained_weights = config.pretrained_weights # Path to pretrained weights
+        # pretrained_weights = config.pretrained_weights # Path to pretrained weights
+        pretrained_weights = "/data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt"
         # text_encoder_name = "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract" # available pretrained weights ["microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract", "microsoft/BiomedNLP-BiomedBERT-large-uncased-abstract"]
         text_encoder_name = None # available pretrained weights ["microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract", "microsoft/BiomedNLP-BiomedBERT-large-uncased-abstract"]
         mean, std = get_mean_std()
