@@ -23,7 +23,7 @@ export WANDB_API_KEY="10bcf42e60bfd806f25e11d5e055aa2c19ede264"
 export CUDA_VISIBLE_DEVICES=2
 
 export PRETRAIN_OUT_PATH=checkpoints/i2t_pre_region
-export SFT_OUT_PATH=/data/aofei/output/MedSight/VQA_RAD/lora16_epoch4
+export SFT_OUT_PATH=/data/aofei/output/MedSight/VQA_RAD/lora16_epoch2
 export VISION_TOWER_CKPT="/data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt"
 
 PRETRAIN_TASK_NAME=$(basename "${PRETRAIN_OUT_PATH%/}")
@@ -65,7 +65,7 @@ torchrun \
     --lora_r 16 \
     --lora_alpha 32 \
     --output_dir $SFT_OUT_PATH \
-    --num_train_epochs 4 \
+    --num_train_epochs 2 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 4 \

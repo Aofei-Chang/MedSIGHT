@@ -1,0 +1,76 @@
+# MedSIGHT model configuration for evaluation
+#
+# Override these paths to point to your local checkpoints / weights.
+# Paths can be absolute or relative to the repository root.
+
+# Path to the MedSIGHT model directory (contains tokenizer, safetensors, added_tokens.json).
+# model_dir: /path/to/MedSIGHT/checkpoint
+model_dir: /data/aofei/output/MedSight/1110_full_instruct_71k_nosep
+
+# Optional path to a PEFT (LoRA) adapter on top of the base model. Set to null to disable.
+peft_path: null
+
+# Base LLM (used only for tokenizer fallback when model_dir does not provide one).
+model_name_or_path: Qwen/Qwen3-8B
+
+# Path to the pretrained Region Tokenizer (RegTok) config and weights.
+# regtok_config_path: /path/to/RegTok/source/regtok/regtok_config.yaml
+regtok_config_path: /home/avc6555/research/MedSight/RegTok/source/regtok/regtok_config.yaml
+# regtok_weight_path: /path/to/RegTok/checkpoints/regtok_weights.pt
+regtok_weight_path: /data/aofei/output/MedSight/Region_perceiver/0079280.pt
+
+# Path to the UniMed-CLIP ViT-L/14 vision encoder weights.
+# vision_tower: /path/to/CLIPs/unimed_clip_vit_l14.pt
+vision_tower: /data/aofei/CLIP/unimed_clip_vit_b16.pt
+
+# Path to the `added_tokens.json` that defines the 32×18 segmentation codebook
+# tokens (the `[...]`-prefixed entries). Required when output_segmentation: true.
+# If null, falls back to `{model_dir}/added_tokens.json` — only correct when
+# model_dir is itself a segmentation-trained checkpoint that carries these tokens.
+codebook_tokens_path: null
+
+# Multimodal/architecture flags.
+use_regtok: true
+mm_vision_vq_type: RegTok
+mm_use_im_start_end: false
+mm_use_im_patch_token: true
+mm_vision_select_feature: patch
+# Which UniMed-CLIP transformer block to feed into the region perceiver.
+# IMPORTANT: must match the value the model was trained with.
+#   -1 → checkpoints trained before this flag was wired through to RegTok
+#        (the old code hardcoded -1 regardless of the training flag).
+#   -2 → checkpoints trained with the patched code at `--mm_vision_select_layer -2`,
+#        which is the value all of the released training scripts now pass.
+mm_vision_select_layer: -1
+mm_patch_merge_type: flat
+mm_projector_type: mlp2x_gelu
+pretrain_mm_mlp_adapter: null
+
+use_region_tokens: true
+use_sep_proj: false
+
+# Region/segmentation tokens.
+# Set output_segmentation: true to enable mask decoding (required for segmentation demos
+# and BiomedParse evaluation).
+output_segmentation: true
+use_seg_loss: true
+modality_num: 18
+codebook_size: 32
+train_all_embeddings: true
+load_codebook_embeddings: false
+use_lightweight_decoder: false
+resize_embedding: false
+
+# LoRA hyperparameters (only used when peft_path is set).
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+use_moe: false
+
+# Generation defaults.
+generation:
+  do_sample: true
+  max_new_tokens: 512
+  min_new_tokens: 1
+  temperature: 0.2
+  repetition_penalty: 1.2

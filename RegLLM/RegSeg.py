@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from transformers.modeling_outputs import ModelOutput
 
 from llava.model.language_model.llava_qwen3 import LlavaQwenForCausalLM, LlavaQwenModel
-from source.tokenizer.region_perceiver import LightweightRegionDecoder
+from source.regtok.region_perceiver import LightweightRegionDecoder
 
 from torch.utils.checkpoint import checkpoint
 

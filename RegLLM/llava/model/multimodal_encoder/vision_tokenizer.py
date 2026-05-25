@@ -132,8 +132,7 @@ class VQTower(nn.Module):
         self.select_layer = args.mm_vision_select_layer
         self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
         self.vq_type = getattr(args, 'mm_vision_vq_type', VQType.OPEN_CLIP)
-        # self.reg_tok_config_path = getattr(args, 'regtok_config_path', None)
-        self.reg_tok_config_path = "/home/avc6555/research/MedSight/RegTok/source/tokenizer/regtok_config.yaml"
+        self.reg_tok_config_path = getattr(args, 'regtok_config_path', None)
         self.reg_tok_config = None
         if self.reg_tok_config_path and self.reg_tok_config_path.endswith(".yaml"):
             # load the config in .yaml file
@@ -160,7 +159,12 @@ class VQTower(nn.Module):
         assert os.path.exists(self.vision_tower_name), "VQGAN model path is invalid: %s" % self.vision_tower_name
         self.image_processor = None
         if self.vq_type == VQType.RegTok:
-            self.vision_tower = tokenflow_model('RegTok', cfg=self.reg_tok_config, pretrain_path=getattr(self.args, 'regtok_weight_path', None))
+            self.vision_tower = tokenflow_model(
+                'RegTok',
+                cfg=self.reg_tok_config,
+                pretrain_path=getattr(self.args, 'regtok_weight_path', None),
+                select_layer=self.select_layer,
+            )
             self.image_processor = UnimedCLIPProcesser(self.vision_tower.unimed_preprocess, self.args)
 
         elif self.vq_type == VQType.OPEN_CLIP:

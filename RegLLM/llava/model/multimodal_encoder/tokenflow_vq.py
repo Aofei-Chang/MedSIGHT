@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 cur_file_path = Path(__file__).resolve()
 sys.path.append(str(cur_file_path.parent.parent.parent.parent.parent))
-from source.tokenizer.vq_model import VQ_models
+from source.regtok.vq_model import VQ_models
 import types
 
 def no_op_train(self, mode=True):
@@ -40,7 +40,11 @@ def no_op_train(self, mode=True):
 
 #     return vq_model
 
-def tokenflow_model(model_name, cfg, pretrain_path=None):
+def tokenflow_model(model_name, cfg, pretrain_path=None, select_layer=None):
+    cfg = dict(cfg) if cfg is not None else {}
+    if select_layer is not None:
+        # Propagate the LLaVA-style mm_vision_select_layer into RegTok's ModelArgs.
+        cfg['select_layer'] = select_layer
     vq_model = VQ_models[model_name](**cfg)
 
     if pretrain_path is not None:

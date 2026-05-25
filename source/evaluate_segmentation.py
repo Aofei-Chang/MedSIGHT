@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from dataset.build import build_dataset
-from tokenizer.vq_model import VQ_models
+from regtok.vq_model import VQ_models
 
 def dice_score(pred, gt, eps=1e-6):
     # pred, gt: (H, W), binary masks

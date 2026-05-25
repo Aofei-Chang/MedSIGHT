@@ -11,7 +11,7 @@ from .open_clip import create_model_and_transforms, get_mean_std
 # if tokenizer_dir not in sys.path:
 #     sys.path.insert(0, tokenizer_dir)
 
-# from tokenizer.vq_model import VQ_models
+# from regtok.vq_model import VQ_models
 
 def build_vision_tower(vision_tower_cfg, **kwargs):
 

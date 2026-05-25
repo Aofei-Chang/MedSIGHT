@@ -1,0 +1,72 @@
+# Dataset configuration for MedSIGHT evaluation.
+#
+# Each entry describes how the inference script reads a sample from the question
+# file and where images live. Override paths to match your local layout.
+
+# Where inference results (jsonl) will be written by default.
+output_root: ./outputs/eval
+
+datasets:
+
+  VQA-RAD:
+    question_file: /path/to/VQA-RAD/test.json
+    image_folder: /path/to/VQA-RAD/images
+    # Field mapping inside each item of question_file.
+    id_field: id
+    question_field: conversations.0.value
+    answer_field: conversations.1.value
+    image_field: image
+    answer_type: open
+    # Optional prompt suffix appended to every question.
+    prompt_suffix: ""
+
+  SLAKE:
+    question_file: /path/to/SLAKE/test.json
+    image_folder: /path/to/SLAKE/imgs
+    id_field: id
+    question_field: conversations.0.value
+    answer_field: conversations.1.value
+    image_field: image
+    answer_type: open
+    prompt_suffix: ""
+
+  PathVQA:
+    question_file: /path/to/PathVQA/pvqa/test.json
+    image_folder: /path/to/PathVQA/pvqa/images/test
+    id_field: id
+    question_field: conversations.0.value
+    answer_field: conversations.1.value
+    image_field: image
+    answer_type: open
+    prompt_suffix: ""
+
+  OmniMedVQA:
+    # OmniMedVQA is sharded by modality. The inference script iterates over
+    # the modalities below and loads {qa_root}/Modality_{name}.json for each.
+    qa_root: /path/to/OmniMedVQA/QA_information/Open-access
+    image_folder: /path/to/OmniMedVQA
+    modalities:
+      - CT
+      - OCT
+      - X-Ray
+      - MRI
+      - ultrasound
+      - Microscopy
+      - Fundus
+    id_field: question_id
+    question_field: question
+    answer_field: gt_answer
+    image_field: image_path
+    answer_type: multiple_choice
+    prompt_suffix: ". Answer this question shortly by only selecting one option."
+
+  BiomedParse:
+    # Segmentation-augmented VQA. image_folder is null because image_file is absolute.
+    question_file: /path/to/BiomedParse/SegVQA_Diagnostic_test_vqa.json
+    image_folder: null
+    id_field: qa_id
+    question_field: question
+    answer_field: short_answer
+    image_field: image_file
+    answer_type: open
+    prompt_suffix: ""

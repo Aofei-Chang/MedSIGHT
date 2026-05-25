@@ -1,0 +1,654 @@
+_name_or_path:
+    value: Qwen/Qwen3-8B
+_wandb:
+    value:
+        cli_version: 0.25.1
+        e:
+            2xvyw5mlmmt5o4lthch9z8qkd6jctmdj:
+                args:
+                    - --model_name_or_path
+                    - Qwen/Qwen3-8B
+                    - --version
+                    - qwen
+                    - --data_path
+                    - /data/aofei/Medical_datasets/PubMedVision/align_datasets/Filter_PubMedVision_Alignment_VQA.json
+                    - --image_folder
+                    - /data/aofei/Medical_datasets/PubMedVision/images
+                    - --vision_tower
+                    - /data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt
+                    - --mm_vision_vq_type
+                    - RegTok
+                    - --regtok_config_path
+                    - /home/avc6555/research/MedSight/RegTok/source/regtok/regtok_config.yaml
+                    - --regtok_weight_path
+                    - /data/aofei/output/MedSight/Region_perceiver/0079280.pt
+                    - --mm_projector_type
+                    - mlp2x_gelu
+                    - --tune_mm_mlp_adapter
+                    - "True"
+                    - --mm_vision_tuning_embedding
+                    - "False"
+                    - --mm_vision_select_layer
+                    - "-2"
+                    - --mm_use_im_start_end
+                    - "False"
+                    - --mm_use_im_patch_token
+                    - "False"
+                    - --bf16
+                    - "True"
+                    - --output_dir
+                    - /data/aofei/output/MedSIGHT2/checkpoints/align_stage1/align_stage1
+                    - --num_train_epochs
+                    - "1"
+                    - --per_device_train_batch_size
+                    - "1"
+                    - --per_device_eval_batch_size
+                    - "1"
+                    - --gradient_accumulation_steps
+                    - "8"
+                    - --save_strategy
+                    - steps
+                    - --save_steps
+                    - "10000"
+                    - --save_total_limit
+                    - "1"
+                    - --learning_rate
+                    - "2e-5"
+                    - --weight_decay
+                    - "0."
+                    - --warmup_ratio
+                    - "0.03"
+                    - --lr_scheduler_type
+                    - cosine
+                    - --logging_steps
+                    - "1"
+                    - --tf32
+                    - "True"
+                    - --model_max_length
+                    - "2048"
+                    - --gradient_checkpointing
+                    - "False"
+                    - --dataloader_num_workers
+                    - "4"
+                    - --lazy_preprocess
+                    - "True"
+                    - --report_to
+                    - wandb
+                    - --run_name
+                    - align_stage1
+                    - --use_region_tokens
+                    - "True"
+                    - --use_sep_proj
+                    - "False"
+                codePath: RegLLM/llava/train/train_mem.py
+                codePathLocal: llava/train/train_mem.py
+                cpu_count: 24
+                cpu_count_logical: 48
+                cudaVersion: "13.2"
+                disk:
+                    /:
+                        total: "214414467072"
+                        used: "30952058880"
+                email: lunnarbeing@gmail.com
+                executable: /data/aofei/conda/env/med_edit/bin/python3.11
+                git:
+                    commit: 9e277a9787eac66068355fb958b121baec401193
+                    remote: https://github.com/Aofei-Chang/RegTok.git
+                gpu: NVIDIA RTX A6000
+                gpu_count: 4
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "51527024640"
+                      name: NVIDIA RTX A6000
+                      uuid: GPU-3ba1130d-c80c-73c0-3494-f653bf00c8a2
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "51527024640"
+                      name: NVIDIA RTX A6000
+                      uuid: GPU-43c53a98-829c-cee8-272c-8649edd6037e
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "51527024640"
+                      name: NVIDIA RTX A6000
+                      uuid: GPU-6652adb6-f7c8-f4a5-ea3c-31c16e3b23f9
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "51527024640"
+                      name: NVIDIA RTX A6000
+                      uuid: GPU-3cf81d86-1783-4076-87ed-11fb02aaa3a2
+                host: i4-l-ffm5105-01
+                memory:
+                    total: "399748431872"
+                os: Linux-7.0.0-15-generic-x86_64-with-glibc2.43
+                program: /home/avc6555/research/MedSight/RegTok/RegLLM/llava/train/train_mem.py
+                python: CPython 3.11.14
+                root: /home/avc6555/research/MedSight/RegTok/RegLLM
+                startedAt: "2026-05-17T01:32:45.640054Z"
+                writerId: 2xvyw5mlmmt5o4lthch9z8qkd6jctmdj
+        m:
+            - "1": train/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.11.14
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 51
+                - 53
+                - 63
+                - 71
+                - 98
+            "2":
+                - 1
+                - 5
+                - 11
+                - 41
+                - 49
+                - 51
+                - 53
+                - 63
+                - 71
+                - 98
+            "3":
+                - 7
+                - 13
+                - 19
+                - 66
+            "4": 3.11.14
+            "5": 0.25.1
+            "6": 4.52.4
+            "9":
+                "1": transformers_trainer
+            "12": 0.25.1
+            "13": linux-x86_64
+accelerator_config:
+    value:
+        dispatch_batches: null
+        even_batches: true
+        gradient_accumulation_kwargs: null
+        non_blocking: false
+        split_batches: false
+        use_seedable_sampler: true
+adafactor:
+    value: false
+adam_beta1:
+    value: 0.9
+adam_beta2:
+    value: 0.999
+adam_epsilon:
+    value: 1e-08
+add_cross_attention:
+    value: false
+architectures:
+    value:
+        - Qwen3ForCausalLM
+attention_bias:
+    value: false
+attention_dropout:
+    value: 0
+auto_find_batch_size:
+    value: false
+average_tokens_across_devices:
+    value: false
+bad_words_ids:
+    value: null
+batch_eval_metrics:
+    value: false
+begin_suppress_tokens:
+    value: null
+bf16:
+    value: true
+bf16_full_eval:
+    value: false
+bits:
+    value: 16
+bos_token_id:
+    value: 151643
+cache_dir:
+    value: null
+chunk_size_feed_forward:
+    value: 0
+cross_attention_hidden_size:
+    value: null
+data_seed:
+    value: null
+dataloader_drop_last:
+    value: false
+dataloader_num_workers:
+    value: 4
+dataloader_persistent_workers:
+    value: false
+dataloader_pin_memory:
+    value: true
+dataloader_prefetch_factor:
+    value: null
+ddp_backend:
+    value: null
+ddp_broadcast_buffers:
+    value: null
+ddp_bucket_cap_mb:
+    value: null
+ddp_find_unused_parameters:
+    value: null
+ddp_timeout:
+    value: 1800
+debug:
+    value: []
+decoder_start_token_id:
+    value: null
+deepspeed:
+    value: null
+disable_tqdm:
+    value: false
+diversity_penalty:
+    value: 0
+do_eval:
+    value: false
+do_predict:
+    value: false
+do_sample:
+    value: false
+do_train:
+    value: true
+double_quant:
+    value: true
+early_stopping:
+    value: false
+encoder_no_repeat_ngram_size:
+    value: 0
+eos_token_id:
+    value: 151645
+eval_accumulation_steps:
+    value: null
+eval_delay:
+    value: 0
+eval_do_concat_batches:
+    value: true
+eval_on_start:
+    value: false
+eval_steps:
+    value: 0
+eval_strategy:
+    value: "no"
+eval_use_gather_object:
+    value: false
+evaluation_strategy:
+    value: steps
+exponential_decay_length_penalty:
+    value: null
+finetuning_task:
+    value: null
+forced_bos_token_id:
+    value: null
+forced_eos_token_id:
+    value: null
+fp16:
+    value: false
+fp16_backend:
+    value: auto
+fp16_full_eval:
+    value: false
+fp16_opt_level:
+    value: O1
+freeze_mm_mlp_adapter:
+    value: false
+fsdp:
+    value: []
+fsdp_config:
+    value:
+        min_num_params: 0
+        xla: false
+        xla_fsdp_grad_ckpt: false
+        xla_fsdp_v2: false
+fsdp_min_num_params:
+    value: 0
+fsdp_transformer_layer_cls_to_wrap:
+    value: null
+full_determinism:
+    value: false
+gradient_accumulation_steps:
+    value: 8
+gradient_checkpointing:
+    value: false
+gradient_checkpointing_kwargs:
+    value: null
+greater_is_better:
+    value: null
+group_by_length:
+    value: false
+group_by_modality_length:
+    value: false
+half_precision_backend:
+    value: auto
+head_dim:
+    value: 128
+hidden_act:
+    value: silu
+hidden_size:
+    value: 4096
+hub_always_push:
+    value: false
+hub_model_id:
+    value: null
+hub_private_repo:
+    value: null
+hub_strategy:
+    value: every_save
+hub_token:
+    value: <HUB_TOKEN>
+id2label:
+    value:
+        "0": LABEL_0
+        "1": LABEL_1
+ignore_data_skip:
+    value: false
+image_aspect_ratio:
+    value: square
+include_for_metrics:
+    value: []
+include_inputs_for_metrics:
+    value: false
+include_num_input_tokens_seen:
+    value: false
+include_tokens_per_second:
+    value: false
+initializer_range:
+    value: 0.02
+intermediate_size:
+    value: 12288
+is_decoder:
+    value: false
+is_encoder_decoder:
+    value: false
+jit_mode_eval:
+    value: false
+label_names:
+    value: null
+label_smoothing_factor:
+    value: 0
+label2id:
+    value:
+        LABEL_0: 0
+        LABEL_1: 1
+learning_rate:
+    value: 2e-05
+length_column_name:
+    value: length
+length_penalty:
+    value: 1
+load_best_model_at_end:
+    value: false
+local_rank:
+    value: 0
+log_level:
+    value: passive
+log_level_replica:
+    value: warning
+log_on_each_node:
+    value: true
+logging_dir:
+    value: /data/aofei/output/MedSIGHT2/checkpoints/align_stage1/align_stage1/runs/May16_21-31-25_i4-l-ffm5105-01
+logging_first_step:
+    value: false
+logging_nan_inf_filter:
+    value: true
+logging_steps:
+    value: 1
+logging_strategy:
+    value: steps
+lora_alpha:
+    value: 16
+lora_bias:
+    value: none
+lora_dropout:
+    value: 0.05
+lora_enable:
+    value: false
+lora_r:
+    value: 64
+lora_weight_path:
+    value: ""
+lr_scheduler_type:
+    value: cosine
+max_grad_norm:
+    value: 1
+max_length:
+    value: 20
+max_position_embeddings:
+    value: 40960
+max_steps:
+    value: -1
+max_window_layers:
+    value: 36
+metric_for_best_model:
+    value: null
+min_length:
+    value: 0
+mm_hidden_size:
+    value: 1024
+mm_patch_merge_type:
+    value: flat
+mm_projector_lr:
+    value: null
+mm_projector_type:
+    value: mlp2x_gelu
+mm_use_im_patch_token:
+    value: false
+mm_use_im_start_end:
+    value: false
+mm_vision_select_feature:
+    value: patch
+mm_vision_select_layer:
+    value: -2
+mm_vision_tower:
+    value: /data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt
+mm_vision_tuning_embedding:
+    value: false
+mm_vision_vq_type:
+    value: RegTok
+model/num_parameters:
+    value: 8618904594
+model_max_length:
+    value: 2048
+model_type:
+    value: llava_qwen
+mp_parameters:
+    value: ""
+mpt_attn_impl:
+    value: triton
+neftune_noise_alpha:
+    value: null
+no_cuda:
+    value: false
+no_repeat_ngram_size:
+    value: 0
+num_attention_heads:
+    value: 32
+num_beam_groups:
+    value: 1
+num_beams:
+    value: 1
+num_hidden_layers:
+    value: 36
+num_key_value_heads:
+    value: 8
+num_return_sequences:
+    value: 1
+num_train_epochs:
+    value: 1
+optim:
+    value: adamw_torch
+optim_args:
+    value: null
+optim_target_modules:
+    value: null
+output_attentions:
+    value: false
+output_dir:
+    value: /data/aofei/output/MedSIGHT2/checkpoints/align_stage1/align_stage1
+output_hidden_states:
+    value: false
+output_scores:
+    value: false
+overwrite_output_dir:
+    value: false
+pad_token_id:
+    value: null
+past_index:
+    value: -1
+per_device_eval_batch_size:
+    value: 1
+per_device_train_batch_size:
+    value: 1
+per_gpu_eval_batch_size:
+    value: null
+per_gpu_train_batch_size:
+    value: null
+prediction_loss_only:
+    value: false
+prefix:
+    value: null
+problem_type:
+    value: null
+push_to_hub:
+    value: false
+push_to_hub_model_id:
+    value: null
+push_to_hub_organization:
+    value: null
+push_to_hub_token:
+    value: <PUSH_TO_HUB_TOKEN>
+quant_type:
+    value: nf4
+ray_scope:
+    value: last
+remove_invalid_values:
+    value: false
+remove_unused_columns:
+    value: false
+repetition_penalty:
+    value: 1
+report_to:
+    value:
+        - wandb
+restore_callback_states_from_checkpoint:
+    value: false
+resume_from_checkpoint:
+    value: null
+return_dict:
+    value: true
+return_dict_in_generate:
+    value: false
+rms_norm_eps:
+    value: 1e-06
+rope_scaling:
+    value: null
+rope_theta:
+    value: 1000000
+run_name:
+    value: align_stage1
+save_on_each_node:
+    value: false
+save_only_model:
+    value: false
+save_safetensors:
+    value: true
+save_steps:
+    value: 10000
+save_strategy:
+    value: steps
+save_total_limit:
+    value: 1
+seed:
+    value: 42
+sep_token_id:
+    value: null
+skip_memory_metrics:
+    value: true
+sliding_window:
+    value: null
+suppress_tokens:
+    value: null
+task_specific_params:
+    value: null
+temperature:
+    value: 1
+tf_legacy_loss:
+    value: false
+tf32:
+    value: true
+tie_encoder_decoder:
+    value: false
+tie_word_embeddings:
+    value: false
+tokenizer_class:
+    value: null
+tokenizer_model_max_length:
+    value: 2048
+tokenizer_padding_side:
+    value: right
+top_k:
+    value: 50
+top_p:
+    value: 1
+torch_compile:
+    value: false
+torch_compile_backend:
+    value: null
+torch_compile_mode:
+    value: null
+torch_dtype:
+    value: bfloat16
+torch_empty_cache_steps:
+    value: null
+torchdynamo:
+    value: null
+torchscript:
+    value: false
+tpu_metrics_debug:
+    value: false
+tpu_num_cores:
+    value: null
+transformers_version:
+    value: 4.52.4
+tune_mm_mlp_adapter:
+    value: true
+typical_p:
+    value: 1
+use_bfloat16:
+    value: false
+use_cache:
+    value: false
+use_cpu:
+    value: false
+use_ipex:
+    value: false
+use_legacy_prediction_loop:
+    value: false
+use_liger_kernel:
+    value: false
+use_mm_proj:
+    value: true
+use_mps_device:
+    value: false
+use_sliding_window:
+    value: false
+vocab_size:
+    value: 151936
+warmup_ratio:
+    value: 0.03
+warmup_steps:
+    value: 0
+weight_decay:
+    value: 0

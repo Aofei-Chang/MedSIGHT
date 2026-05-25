@@ -1,71 +1,80 @@
 #!/bin/bash
-# pip3 install -e . 
-# pip3 install -e ".[train]" 
+# Stage-1 alignment training for MedSIGHT (Qwen3-8B + RegTok + segmentation head).
+#
+# Trains the multimodal projector and segmentation alignment on top of a pretrained
+# Region Tokenizer and the Qwen3-8B LLM. Outputs are written to $SFT_OUT_PATH.
+#
+# Required paths (override via environment variables before running):
+#   REGTOK_ROOT     – path to this repository (defaults to current working dir)
+#   DATA_ROOT       – root directory containing the alignment data
+#   CKPT_ROOT       – directory to write checkpoints into
+#   REGTOK_WEIGHTS  – pretrained Region Tokenizer weights
+#   VISION_TOWER    – pretrained UniMed-CLIP weights
+#   HF_HUB_CACHE    – HuggingFace cache (Qwen3 weights live here)
 
-# CUR_DIR=$(cd `dirname $0`; pwd)
+set -euo pipefail
 
-# cd ${CUR_DIR}/../..
 export FAST_TRANSFORMER=O0
 export BYTED_TORCH_BYTECCL=O0
 export NCCL_IB_DISABLE=0
 export NCCL_IB_GID_INDEX=3
 export NCCL_SOCKET_IFNAME=eth0
-
-# export NCCL_DEBUG=INFO
-# export NCCL_DEBUG_SUBSYS=ALL
-# export TORCH_NCCL_TRACE_BUFFER_SIZE=1000000   # enable flight recorder
-# export NCCL_SOCKET_IFNAME=eth0  
-
 export OMP_NUM_THREADS=8
-export HF_HUB_CACHE="/qumulo/shared_data/aofei_summer/LLMs"
-export WANDB_API_KEY="10bcf42e60bfd806f25e11d5e055aa2c19ede264"
 
-export PRETRAIN_OUT_PATH=checkpoints/i2t_pre_region
-export SFT_OUT_PATH=/qumulo/shared_data/aofei_summer/intern_records/LVLM/checkpoints/reg_seg_align1110
-export VISION_TOWER_CKPT="/qumulo/shared_data/aofei_summer/CLIPs/unimed_clip_vit_l14.pt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REGTOK_ROOT="${REGTOK_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+DATA_ROOT="${DATA_ROOT:-/path/to/data}"
+CKPT_ROOT="${CKPT_ROOT:-./checkpoints}"
+REGTOK_WEIGHTS="${REGTOK_WEIGHTS:-/path/to/RegTok/checkpoints/regtok_weights.pt}"
+VISION_TOWER="${VISION_TOWER:-/path/to/CLIPs/unimed_clip_vit_l14.pt}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-${HOME}/.cache/huggingface}"
 
-PRETRAIN_TASK_NAME=$(basename "${PRETRAIN_OUT_PATH%/}")
-SFT_TASK_NAME=$(basename "${SFT_OUT_PATH%/}")
-WORKER_NUM=1
-NPROC_PER_NODE=1
+PRETRAIN_OUT_PATH="${CKPT_ROOT}/i2t_pre_region"
+SFT_OUT_PATH="${CKPT_ROOT}/reg_seg_align"
+SFT_TASK_NAME="$(basename "${SFT_OUT_PATH%/}")"
+
+WORKER_NUM="${WORKER_NUM:-1}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
 
 torchrun \
---nnodes $WORKER_NUM \
---nproc_per_node $NPROC_PER_NODE \
---master_addr localhost \
---master_port 16668 \
+    --nnodes "$WORKER_NUM" \
+    --nproc_per_node "$NPROC_PER_NODE" \
+    --master_addr localhost \
+    --master_port 16668 \
     llava/train/train_mem.py \
     --model_name_or_path Qwen/Qwen3-8B \
-    --pretrain_mm_mlp_adapter /qumulo/shared_data/aofei_summer/RegTok/RegLLM/checkpoints/i2t_pre_region_final/mm_projector.bin \
+    --pretrain_mm_mlp_adapter "${PRETRAIN_OUT_PATH}/mm_projector.bin" \
     --version qwen \
-    --data_path /qumulo/shared_data/aofei_summer/data/RegAlign/Seg_instruct_63k.json \
-    --codebook_path /qumulo/shared_data/aofei_summer/intern_records/RegTok/checkpoints/codebook/projected_codebook.pt \
-    --image_folder /qumulo/shared_data/aofei_summer/data/LVLM/HuatuoGPT \
-    --vision_tower $VISION_TOWER_CKPT \
+    --data_path "${DATA_ROOT}/RegAlign/Seg_instruct_63k.json" \
+    --image_folder "${DATA_ROOT}/LVLM/HuatuoGPT" \
+    --vision_tower "$VISION_TOWER" \
     --mm_vision_vq_type RegTok \
-    --regtok_config_path /qumulo/shared_data/aofei_summer/RegTok/source/tokenizer/regtok_config.yaml \
-    --regtok_weight_path /qumulo/shared_data/aofei_summer/intern_records/RegTok/checkpoints/RegTok_pipeline_full_wo_quant/002-RegTok/checkpoints/0079280.pt \
+    --regtok_config_path "${REGTOK_ROOT}/source/regtok/regtok_config.yaml" \
+    --regtok_weight_path "$REGTOK_WEIGHTS" \
     --mm_projector_type mlp2x_gelu \
     --tune_mm_mlp_adapter False \
     --mm_vision_tuning_embedding False \
+    `# Selects the UniMed-CLIP block fed into the region perceiver. Must match the` \
+    `# value in configs/model.yaml at inference time. (Note: in earlier code this` \
+    `# flag was silently ignored — RegTok always used the final layer.)` \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --bf16 True \
-    --output_dir $SFT_OUT_PATH \
+    --output_dir "$SFT_OUT_PATH" \
     --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy steps \
     --eval_steps 0 \
-    --save_strategy "steps" \
+    --save_strategy steps \
     --save_steps 24000 \
     --save_total_limit 1 \
     --learning_rate 5e-4 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
-    --lr_scheduler_type "cosine" \
+    --lr_scheduler_type cosine \
     --logging_steps 1 \
     --tf32 True \
     --model_max_length 2048 \
@@ -73,7 +82,7 @@ torchrun \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to wandb \
-    --run_name ${SFT_TASK_NAME} \
+    --run_name "$SFT_TASK_NAME" \
     --use_region_tokens True \
     --output_segmentation True \
     --use_seg_loss True \
@@ -84,8 +93,4 @@ torchrun \
     --align_regtok True \
     --seg_align_stage True \
     --use_sep_proj False \
-    --use_lightweight_decoder False \
-
-
-    # --pretrained_llm_path /qumulo/shared_data/aofei_summer/intern_records/LVLM/checkpoints/i2t_instruct_region_final \
-        # --deepspeed ./scripts/zero2.json \
+    --use_lightweight_decoder False

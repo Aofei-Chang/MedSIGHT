@@ -147,6 +147,12 @@ class LlavaQwen2ForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         else:
             inputs_embeds = self.get_model().embed_tokens(inputs)
 
+        # Transformers' generation internals differ depending on whether
+        # `attention_mask` is *present* in the kwarg dict.
+        # Passing `attention_mask=None` (or a synthetic value) can break depending
+        # on the transformers version / validation logic.
+        if attention_mask is None:
+            return super().generate(position_ids=position_ids, inputs_embeds=inputs_embeds, **kwargs)
         return super().generate(position_ids=position_ids, attention_mask=attention_mask, inputs_embeds=inputs_embeds, **kwargs)
 
     def prepare_inputs_for_generation(self, input_ids, past_key_values=None, inputs_embeds=None, **kwargs):
