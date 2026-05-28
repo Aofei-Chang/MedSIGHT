@@ -12,6 +12,8 @@
 #   REGTOK_WEIGHTS  – pretrained Region Tokenizer weights
 #   VISION_TOWER    – pretrained UniMed-CLIP weights
 #   HF_HUB_CACHE    – HuggingFace cache (Qwen3 weights live here)
+#   WANDB_PROJECT   – Weights & Biases project name
+#   WANDB_ENTITY    – Weights & Biases entity/team (optional)
 
 # set -euo pipefail
 
@@ -25,16 +27,19 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REGTOK_ROOT="${REGTOK_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 DATA_ROOT="${DATA_ROOT:-/data/aofei}"
-CKPT_ROOT="${CKPT_ROOT:-/data/aofei/output/MedSIGHT2/checkpoints/align_stage1}"
+CKPT_ROOT="${CKPT_ROOT:-/data/aofei/output/MedSIGHT/checkpoints/align_stage1}"
 REGTOK_WEIGHTS="${REGTOK_WEIGHTS:-/data/aofei/output/MedSight/Region_perceiver/0079280.pt}"
 VISION_TOWER="${VISION_TOWER:-/data/aofei/CLIP/unimed_clip_vit_l14_base_text_encoder.pt}"
 export HF_HUB_CACHE="/data/aofei/cache/huggingface"
+export WANDB_PROJECT="${WANDB_PROJECT:-MedSIGHT_repo}"
+# export WANDB_ENTITY="${WANDB_ENTITY:-}"
 
 PRETRAIN_OUT_PATH="${CKPT_ROOT}"
 PRETRAIN_TASK_NAME="$(basename "${PRETRAIN_OUT_PATH%/}")"
 
 WORKER_NUM="${WORKER_NUM:-1}"
-NPROC_PER_NODE="${NPROC_PER_NODE:-4}"
+NPROC_PER_NODE="${NPROC_PER_NODE:-2}"
+
 
 torchrun \
     --nnodes "$WORKER_NUM" \
@@ -44,7 +49,7 @@ torchrun \
     llava/train/train_mem.py \
         --model_name_or_path Qwen/Qwen3-8B \
         --version qwen \
-        --data_path "${DATA_ROOT}/Medical_datasets/PubMedVision/align_datasets/Filter_PubMedVision_Alignment_VQA.json" \
+        --data_path "${DATA_ROOT}/Medical_datasets/PubMedVision/Filter_PubMedVision_Alignment_VQA.json" \
         --image_folder "${DATA_ROOT}/Medical_datasets/PubMedVision" \
         --vision_tower "$VISION_TOWER" \
         --mm_vision_vq_type RegTok \
@@ -61,7 +66,7 @@ torchrun \
         --num_train_epochs 1 \
         --per_device_train_batch_size 1 \
         --per_device_eval_batch_size 1 \
-        --gradient_accumulation_steps 4 \
+        --gradient_accumulation_steps 8 \
         --save_strategy steps \
         --save_steps 10000 \
         --save_total_limit 1 \
