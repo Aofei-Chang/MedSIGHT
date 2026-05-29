@@ -16,4 +16,4 @@ infer_interpolate: False
 finetune_codebook_only: False
 use_self_attn: False
 upsample_mode: "conv"
-pretrained_weights: "/data/aofei/CLIP/unimed_clip_vit_b16.pt"
+pretrained_weights: "Path to unimed_clip_vit_b16.pt"
