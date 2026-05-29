@@ -26,6 +26,20 @@ benchmarks.
   <em>Built on Qwen3-8B + UniMed-CLIP (ViT-L/14).</em>
 </p>
 
+<p align="center">
+  <a href="https://aofei-chang.github.io/MedSIGHT_Page/"><strong>[Project Page]</strong></a>
+</p>
+
+---
+
+## TODO
+
+- [x] Release the paper
+- [x] Release the project page
+- [x] Release the codebase
+- [ ] Release pretrained checkpoints (Region Perceiver, codebook, final MedSIGHT model)
+- [ ] Release the dataset (DiagSeg benchmark + grounding instruction set)
+
 ---
 
 ## Highlights
