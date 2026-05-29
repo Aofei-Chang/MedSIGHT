@@ -64,7 +64,7 @@ paper):
 | 2. Codebook learning | Modality-aware codebook `C`, `W_q`, `W_m` (`R` frozen) | BiomedParse `D_seg` | `source/` — `train_vq_full.sh` |
 | 3. Vision→Text alignment | Vision-to-text projector `P(v→t)` (LLM, encoder, `R` frozen) | PubMedVision `D_v→t` (647K) | `RegLLM/scripts/align_stage1.sh` |
 | 4. Text→Vision / codebook alignment | `P(t→v)` + codebook embeddings | grounding set `D_t→v` (60K) | `RegLLM/scripts/align_regtok_1110.sh` |
-| 5. Unified grounded instruction tuning | LLM `M` + projectors + codebook | `D_r_inst` (60K) ∪ `D_g_inst` (12K) | `RegLLM/scripts/instruct_region_1110.sh` (full FT) or `instruct_regtok_lora_seg.sh` (LoRA) |
+| 5. Unified grounded instruction tuning | LLM `M` + projectors + codebook | `D_r_inst` (60K) ∪ `D_g_inst` (12K) | `RegLLM/scripts/instruct_region_1110.sh` (full FT) |
 
 Stages 1–2 live under `source/` (Region Perceiver + codebook). Stages 3–5 live under
 `RegLLM/` (the LVLM).
