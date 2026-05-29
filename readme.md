@@ -23,7 +23,7 @@ results across diverse imaging modalities on both medical comprehension and segm
 benchmarks.
 
 <p align="center">
-  <em>Built on Qwen3-8B + UniMed-CLIP (ViT-L/14). A Qwen2.5-7B variant is also provided.</em>
+  <em>Built on Qwen3-8B + UniMed-CLIP (ViT-L/14).</em>
 </p>
 
 ---
@@ -131,8 +131,7 @@ All experiments in the paper were run on 4×H100 GPUs.
 
 MedSIGHT relies on three pretrained components plus several datasets:
 
-- **Base LLM** — [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) (a
-  [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B) variant is also supported).
+- **Base LLM** — [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B).
 - **Vision encoder** — [UniMed-CLIP (ViT-L/14)](https://arxiv.org/abs/2412.10372).
 - **Region Perceiver + codebook** — pretrained by Stages 1–2 of this repo (or use a released
   checkpoint).
