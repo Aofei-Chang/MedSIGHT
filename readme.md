@@ -37,8 +37,8 @@ benchmarks.
 - [x] Release the paper
 - [x] Release the project page
 - [x] Release the codebase
-- [ ] Release pretrained checkpoints (Region Perceiver, codebook, final MedSIGHT model)
-- [ ] Release the dataset (DiagSeg benchmark + grounding instruction set)
+- [x] Release pretrained checkpoints (Region Perceiver, codebook, final MedSIGHT model)
+- [x] Release the dataset (DiagSeg benchmark + grounding instruction set)
 
 ---
 
@@ -174,10 +174,10 @@ the pipeline or run inference directly with the final model.
 
 | Component | Stage | Description | Download |
 |-----------|-------|-------------|----------|
-| **Region Perceiver** | 1 | Pretrained Region Perceiver weights (`regtok_weights.pt`), the input to all downstream stages. | _TODO: add link_ |
-| **Region Codebook** | 2 | Trained modality-aware codebook (`codebook.pt`), 18 modalities × 32 codes. | _TODO: add link_ |
-| **Stage-1 mm-adapter** | 3 | Vision-to-text projector after the alignment stage (`mm_projector.bin`). | _TODO: add link_ |
-| **MedSIGHT (Qwen3-8B)** | 5 | **Final unified model** — comprehension + grounding + segmentation. | 
+| **Region Perceiver** | 1 | Pretrained Region Perceiver weights, the input to all downstream stages. | [HuggingFace](https://huggingface.co/Caf0914/MedSIGHT/blob/main/region_perceiver/0079280.pt) |
+| **Region Codebook** | 2 | Trained modality-aware codebook, 18 modalities × 32 codes. | [HuggingFace](https://huggingface.co/Caf0914/MedSIGHT) |
+| **Stage-1 mm-adapter** | 3 | Vision-to-text projector after the alignment stage. | [HuggingFace](https://huggingface.co/Caf0914/MedSIGHT) |
+| **MedSIGHT (Qwen3-8B)** | 5 | **Final unified model** — comprehension + grounding + segmentation. | [HuggingFace](https://huggingface.co/Caf0914/MedSIGHT/tree/main/medsight_full_instruct) |
 
 > To run inference with the final model, point `model_dir`, `regtok_weight_path`, and
 > `codebook_tokens_path` in `RegLLM/llava/eval/configs/model.yaml` at the downloaded files.
@@ -301,7 +301,7 @@ from the test splits of multiple public segmentation datasets (BiomedParse subse
 eight modalities (CT, MRI, X-ray, Pathology, Ultrasound, Endoscopy, Dermatoscopy, OCT) and
 validated by licensed physicians.
 
-**Download:** _TODO: add DiagSeg link_
+**Download:** [HuggingFace](https://huggingface.co/datasets/Caf0914/DiagSeg)
 
 ---
 

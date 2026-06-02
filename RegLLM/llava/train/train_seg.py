@@ -299,6 +299,17 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
         trainer.save_model(output_dir)
         return
 
+    from torch.distributed.fsdp import FullyShardedDataParallel as FSDP, StateDictType, FullStateDictConfig
+    if isinstance(trainer.model, FSDP):
+        print("Saving model state dict (FSDP)...")
+        # Gather shards to CPU one layer at a time; only rank 0 receives the full dict.
+        save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
+        with FSDP.state_dict_type(trainer.model, StateDictType.FULL_STATE_DICT, save_policy):
+            cpu_state_dict = trainer.model.state_dict()
+        if trainer.args.should_save:
+            trainer._save(output_dir, state_dict=cpu_state_dict)
+        return
+
     state_dict = trainer.model.state_dict()
     print("Saving model state dict...")
     if trainer.args.should_save:
