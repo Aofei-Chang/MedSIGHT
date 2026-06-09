@@ -2,6 +2,6 @@ __pycache__/
 # baselines/
 data/
 wandb/
-RegLLM/llava/eval/examples/outputs/
+llava/eval/examples/outputs/
 upload_to_hf.py
 upload_dataset_to_hf.py
