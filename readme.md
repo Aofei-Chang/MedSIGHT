@@ -32,6 +32,27 @@ benchmarks.
 
 ---
 
+## 🚀 New: MedSIGHT-Comp — a lightweight comprehension-only model
+
+We now release **MedSIGHT-Comp**, a lightweight variant of MedSIGHT that keeps only the
+**visual comprehension** capabilities and **drops the segmentation branch** (Region Perceiver
+decoding + codebook grounding). This makes the model far easier to import and deploy: you can
+**load MedSIGHT-Comp with a single call in one line**, with no need to configure the Region
+Perceiver weights, codebook tokens, or segmentation head.
+
+Despite being lighter, **MedSIGHT-Comp achieves even higher performance on medical VQA
+benchmarks** than the full unified model, making it the recommended choice when you only need
+comprehension (VQA / diagnostic reasoning) and do not require pixel-level segmentation.
+
+For the model, code, and usage instructions, see the dedicated repository:
+👉 **[MedSIGHT-Comp](https://github.com/Aofei-Chang/MedSIGHT-Comp)**
+
+> Use **MedSIGHT-Comp** for comprehension-only workloads (simpler loading, higher VQA
+> accuracy); use the full **MedSIGHT** in this repo when you need unified comprehension +
+> grounding + segmentation.
+
+---
+
 ## TODO
 
 - [x] Release the paper
